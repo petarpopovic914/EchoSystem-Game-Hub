@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Taxi Night Shift</title>
+    <style>
+        /* MAIN LAYOUT: Full Screen Flex Column */
+        body { 
+            margin: 0; padding: 0; 
+            background: #000; 
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+            overflow: hidden; 
+            font-family: 'Arial Black', sans-serif;
+            touch-action: none; 
+        }
+
+        /* 1. HISTORY BAR */
+        #history-bar {
+            height: 40px; flex-shrink: 0;
+            background-color: #1a1a1a; z-index: 1000;
+            display: flex; align-items: center; justify-content: flex-start;
+            overflow-x: auto; padding: 0 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            white-space: nowrap;
+        }
+        #history-bar::-webkit-scrollbar { display: none; }
+
+        .history-item {
+            display: inline-block; padding: 4px 10px; margin-right: 8px;
+            border-radius: 4px; font-weight: bold; font-size: 14px;
+            color: #fff; background-color: #34495e; min-width: 50px; text-align: center;
+        }
+        .history-item.win { background-color: #2ecc71; color: #000; }
+        .history-item.loss { background-color: #95a5a6; }
+        .history-item.high { background-color: #f1c40f; color: #000; box-shadow: 0 0 5px #f1c40f; }
+
+        /* 2. APP CONTAINER */
+        #app-container {
+            flex: 1; display: flex; flex-direction: column;
+            position: relative; overflow: hidden;
+        }
+
+        /* 3. GAME WRAPPER */
+        #game-wrapper {
+            flex: 1; position: relative; width: 100%; min-height: 0;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* OVERLAY HEADER (Top Bar) */
+        #top-bar {
+            position: absolute; top: 0; left: 0; width: 100%;
+            padding: 10px 15px; box-sizing: border-box;
+            display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, transparent 100%);
+            z-index: 10; pointer-events: none;
+        }
+        .logo { color: #e74c3c; font-weight: 900; font-style: italic; font-size: 20px; text-shadow: 0 2px 2px #000; }
+        .balance-box { color: #2ecc71; font-weight: bold; font-size: 18px; text-shadow: 0 2px 2px #000; }
+
+        /* 4. BETTING CONTROLS */
+        #betting-area {
+            flex-shrink: 0; height: auto; background: #111; padding: 10px;
+            display: flex; flex-direction: column; gap: 8px;
+            padding-bottom: 20px; z-index: 50; border-top: 1px solid #333;
+        }
+
+        .bet-panel {
+            background: #1e1e1e; border-radius: 12px; padding: 8px;
+            display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px;
+            border: 1px solid #333;
+        }
+        
+        .bet-input {
+            flex: 1; background: transparent; border: none; 
+            color: #fff; text-align: center; font-size: 18px; 
+            font-weight: bold; font-family: 'Arial Black', sans-serif;
+            outline: none; -moz-appearance: textfield;
+        }
+        .bet-input::-webkit-outer-spin-button, 
+        .bet-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        .controls-col { display: flex; flex-direction: column; gap: 6px; }
+        .input-row { display: flex; align-items: center; background: #000; border-radius: 20px; padding: 2px; border: 1px solid #333; }
+        
+        .btn-circle {
+            width: 28px; height: 28px; border-radius: 50%; border: none;
+            background: #333; color: #fff; font-size: 16px; cursor: pointer;
+        }
+        .btn-circle:active { background: #555; }
+
+        .quick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+        .btn-quick {
+            background: #2b2b2b; color: #ccc; border: none; border-radius: 4px;
+            padding: 6px; font-size: 10px; cursor: pointer;
+        }
+        .btn-quick:active { background: #444; }
+
+        .action-col { display: flex; }
+        
+        .btn-action {
+            width: 100%; height: 100%; min-height: 70px;
+            background: #2ecc71; border: none; border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; position: relative;
+            border-bottom: 4px solid #219150; 
+        }
+        
+        .btn-action:active { background: #27ae60; border-bottom: 4px solid #219150; transform: none; }
+        .btn-label { color: #000; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        .btn-value { color: #000; font-size: 20px; font-weight: 900; }
+        
+        .btn-action.betting { background: #e74c3c; border-bottom: 4px solid #c0392b; color: #fff; }
+        .btn-action.betting:active { background: #c0392b; }
+        .btn-action.betting .btn-label, .btn-action.betting .btn-value { color: #fff; }
+        .btn-action:disabled { background: #444; border-bottom: 4px solid #222; color: #777; cursor: not-allowed; }
+
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #111; z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .loader-title { color: #f1c40f; font-size: 24px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+        .progress-container { width: 80%; max-width: 300px; height: 10px; background: #333; border-radius: 10px; overflow: hidden; border: 2px solid #555; position: relative; }
+        .progress-fill { width: 0%; height: 100%; background: #f1c40f; transition: width 0.1s linear; box-shadow: 0 0 10px #f1c40f; }
+        .progress-text { color: #888; font-size: 12px; margin-top: 10px; }
+
+        /* --- MOBILE RESPONSIVE STYLES --- */
+        @media (max-width: 768px) {
+            .logo { font-size: 16px; }
+            .balance-box { font-size: 16px; }
+            
+            #betting-area { padding: 5px; gap: 5px; padding-bottom: 15px; }
+            .bet-panel { padding: 6px; gap: 6px; }
+            
+            .btn-action { min-height: 50px; }
+            .btn-value { font-size: 16px; }
+            .btn-label { font-size: 10px; }
+            
+            .bet-input { font-size: 16px; }
+            .btn-circle { width: 24px; height: 24px; font-size: 14px; }
+            .btn-quick { padding: 4px; font-size: 9px; }
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/index-BccdEoIY.js"></script>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="loader-title">TAXI NIGHT SHIFT</div>
+        <div class="progress-container">
+            <div class="progress-fill" id="loader-bar"></div>
+        </div>
+        <div class="progress-text" id="loader-text">INITIALIZING...</div>
+    </div>
+
+    <div id="history-bar"></div>
+
+    <div id="app-container">
+        <div id="game-wrapper">
+            <div id="top-bar">
+                <div class="logo">TAXI NIGHT SHIFT</div>
+                <div class="balance-box"><span id="balance">50,000</span> RSD</div>
+            </div>
+        </div>
+
+        <div id="betting-area">
+            <div class="bet-panel" id="panel-1">
+                <div class="controls-col">
+                    <div class="input-row">
+                        <button class="btn-circle minus">-</button>
+                        <input type="number" class="bet-input" value="100">
+                        <button class="btn-circle plus">+</button>
+                    </div>
+                    <div class="quick-row">
+                        <button class="btn-quick" data-amt="100">100</button>
+                        <button class="btn-quick" data-amt="200">200</button>
+                        <button class="btn-quick" data-amt="500">500</button>
+                        <button class="btn-quick" data-amt="1000">1K</button>
+                    </div>
+                </div>
+                <div class="action-col">
+                    <button class="btn-action main-btn">
+                        <span class="btn-label">BET</span>
+                        <span class="btn-value">100 RSD</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bet-panel" id="panel-2">
+                <div class="controls-col">
+                    <div class="input-row">
+                        <button class="btn-circle minus">-</button>
+                        <input type="number" class="bet-input" value="100">
+                        <button class="btn-circle plus">+</button>
+                    </div>
+                    <div class="quick-row">
+                        <button class="btn-quick" data-amt="100">100</button>
+                        <button class="btn-quick" data-amt="200">200</button>
+                        <button class="btn-quick" data-amt="500">500</button>
+                        <button class="btn-quick" data-amt="1000">1K</button>
+                    </div>
+                </div>
+                <div class="action-col">
+                    <button class="btn-action main-btn">
+                        <span class="btn-label">BET</span>
+                        <span class="btn-value">100 RSD</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
