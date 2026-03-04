@@ -1,4 +1,4 @@
-import{w as _,m as y,n as c,u as S,B as g,o as m,E as I,p}from"./index-BccdEoIY.js";const D={name:"texture-bit",vertex:{header:`
+import{w as _,m as y,n as c,u as S,B as g,o as m,E as I,p}from"./index-PyTMwQ26.js";const D={name:"texture-bit",vertex:{header:`
 
         struct TextureUniforms {
             uTextureMatrix:mat3x3<f32>,
