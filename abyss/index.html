@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ABYSS - Deep Sea Crash Game</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: #000810;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    width: 100%; height: 100%;
+    color: #fff;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #gameContainer {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: clamp(8px, 2vw, 16px) clamp(12px, 3vw, 24px);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .multiplier-display {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 7vw, 56px);
+    font-weight: 900;
+    letter-spacing: 2px;
+    transition: color 1.2s ease, text-shadow 1.2s ease;
+  }
+
+  .multiplier-display.zone-surface { color: #00e5ff; text-shadow: 0 0 30px rgba(0, 229, 255, 0.6), 0 0 60px rgba(0, 229, 255, 0.2); }
+  .multiplier-display.zone-twilight { color: #7b68ee; text-shadow: 0 0 30px rgba(123, 104, 238, 0.6), 0 0 60px rgba(123, 104, 238, 0.2); }
+  .multiplier-display.zone-midnight { color: #ff4081; text-shadow: 0 0 30px rgba(255, 64, 129, 0.6), 0 0 60px rgba(255, 64, 129, 0.2); }
+  .multiplier-display.zone-abyss { color: #ff1744; text-shadow: 0 0 40px rgba(255, 23, 68, 0.8), 0 0 80px rgba(255, 0, 0, 0.4); }
+  .multiplier-display.crashed { color: #ff0000; animation: crashPulse 0.3s ease infinite; }
+
+  @keyframes crashPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .depth-info { text-align: right; }
+
+  .depth-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .depth-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    transition: color 1s ease;
+  }
+
+  .zone-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-top: 4px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    display: inline-block;
+    float: right;
+    transition: all 0.8s ease;
+  }
+
+  .zone-name.surface { color: #00e5ff; background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.2); }
+  .zone-name.twilight { color: #7b68ee; background: rgba(123, 104, 238, 0.1); border: 1px solid rgba(123, 104, 238, 0.2); }
+  .zone-name.midnight { color: #ff4081; background: rgba(255, 64, 129, 0.1); border: 1px solid rgba(255, 64, 129, 0.2); }
+  .zone-name.abyss { color: #ff1744; background: rgba(255, 23, 68, 0.15); border: 1px solid rgba(255, 23, 68, 0.3); animation: abyssPulse 2s ease infinite; }
+
+  @keyframes abyssPulse { 0%, 100% { border-color: rgba(255, 23, 68, 0.3); } 50% { border-color: rgba(255, 23, 68, 0.7); } }
+
+  .controls {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: clamp(8px, 2vh, 16px) clamp(10px, 3vw, 24px);
+    padding-bottom: max(clamp(8px, 2vh, 16px), env(safe-area-inset-bottom, 0px));
+    display: flex;
+    gap: clamp(6px, 1.5vw, 12px);
+    align-items: center;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    pointer-events: all;
+    z-index: 10;
+  }
+
+  .bet-section { display: flex; align-items: center; gap: 8px; }
+
+  .bet-label {
+    font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(255,255,255,0.4);
+    font-family: 'Orbitron', monospace;
+  }
+
+
+
+  .bet-stepper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(0, 200, 255, 0.15);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .bet-stepper:focus-within { border-color: rgba(0, 200, 255, 0.4); }
+
+  .bet-btn {
+    width: 42px; height: 42px;
+    background: rgba(0, 200, 255, 0.06);
+    border: none;
+    color: #00e5ff;
+    font-family: 'Orbitron', monospace;
+    font-size: 20px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .bet-btn:hover { background: rgba(0, 200, 255, 0.15); color: #fff; }
+  .bet-btn:active { background: rgba(0, 200, 255, 0.25); transform: scale(0.92); }
+  .bet-btn:disabled { opacity: 0.2; cursor: not-allowed; transform: none; }
+  .bet-btn.minus { border-right: 1px solid rgba(0, 200, 255, 0.1); }
+  .bet-btn.plus { border-left: 1px solid rgba(0, 200, 255, 0.1); }
+
+  .bet-input {
+    width: 80px; padding: 8px 4px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-family: 'Orbitron', monospace;
+    font-size: 16px; font-weight: 700;
+    outline: none; text-align: center;
+    -moz-appearance: textfield;
+  }
+  .bet-input::-webkit-outer-spin-button,
+  .bet-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  .btn-main {
+    flex: 1; padding: 14px 24px; border: none; border-radius: 10px;
+    font-family: 'Orbitron', monospace; font-size: 16px; font-weight: 700;
+    letter-spacing: 2px; cursor: pointer; transition: all 0.3s;
+    text-transform: uppercase; position: relative; overflow: hidden;
+  }
+
+  .btn-dive {
+    background: linear-gradient(135deg, #0066ff, #00ccff); color: #fff;
+    box-shadow: 0 4px 20px rgba(0, 150, 255, 0.3);
+  }
+  .btn-dive:hover { box-shadow: 0 4px 30px rgba(0, 150, 255, 0.5); transform: translateY(-1px); }
+
+  .btn-cashout {
+    background: linear-gradient(135deg, #00c853, #69f0ae); color: #003d00;
+    box-shadow: 0 4px 20px rgba(0, 200, 83, 0.3);
+    animation: cashoutGlow 1.5s ease infinite;
+  }
+  @keyframes cashoutGlow { 0%, 100% { box-shadow: 0 4px 20px rgba(0, 200, 83, 0.3); } 50% { box-shadow: 0 4px 35px rgba(0, 200, 83, 0.6); } }
+  .btn-cashout:hover { transform: translateY(-2px); }
+
+  .balance-display {
+    font-family: 'Orbitron', monospace; font-size: 14px;
+    color: rgba(255,255,255,0.6); text-align: right; min-width: 120px;
+  }
+  .balance-amount { font-size: 20px; font-weight: 700; color: #69f0ae; }
+
+  .history-bar {
+    position: absolute; top: clamp(50px, 10vh, 70px); left: clamp(12px, 3vw, 24px);
+    display: flex; gap: clamp(3px, 0.5vw, 6px); z-index: 10; pointer-events: none;
+    flex-wrap: wrap; max-width: 60vw;
+  }
+  .history-item {
+    padding: 3px 8px; border-radius: 4px;
+    font-family: 'Orbitron', monospace; font-size: 11px; font-weight: 700;
+    animation: historyIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes historyIn { 0% { transform: scale(0) translateY(-10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+  .history-item.low { background: rgba(0, 229, 255, 0.15); color: #00e5ff; }
+  .history-item.mid { background: rgba(123, 104, 238, 0.15); color: #7b68ee; }
+  .history-item.high { background: rgba(255, 64, 129, 0.15); color: #ff4081; }
+  .history-item.extreme { background: rgba(255, 23, 68, 0.2); color: #ff1744; }
+
+  .status-text {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(18px, 4vw, 28px); font-weight: 900; letter-spacing: clamp(3px, 1vw, 6px);
+    text-transform: uppercase; z-index: 10; pointer-events: none;
+    text-shadow: 0 0 40px currentColor;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  .status-text.visible { opacity: 1; }
+  .status-text.waiting { color: rgba(0, 200, 255, 0.6); }
+  .status-text.crashed { color: #ff1744; font-size: clamp(24px, 6vw, 42px); animation: crashShake 0.1s linear infinite; }
+  .status-text.cashedout { color: #69f0ae; font-size: clamp(22px, 5vw, 36px); animation: cashPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+  @keyframes crashShake {
+    0% { transform: translate(-50%, -50%) rotate(-2deg) scale(1); }
+    25% { transform: translate(-48%, -53%) rotate(2deg) scale(1.02); }
+    50% { transform: translate(-52%, -47%) rotate(-2deg) scale(0.98); }
+    75% { transform: translate(-50%, -53%) rotate(1deg) scale(1.01); }
+    100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  }
+  @keyframes cashPop {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+
+  .pressure-gauge {
+    position: absolute; right: clamp(10px, 2vw, 24px); top: 50%; transform: translateY(-50%);
+    width: 6px; height: 40vh; max-height: 300px; background: rgba(255,255,255,0.05);
+    border-radius: 3px; z-index: 10; pointer-events: none; overflow: hidden;
+  }
+  .pressure-fill {
+    position: absolute; bottom: 0; width: 100%; border-radius: 3px;
+    transition: height 0.5s ease, background 1.5s ease;
+  }
+
+  .warning-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    opacity: 0; transition: opacity 0.3s;
+  }
+
+  /* Cheat Panel */
+  .cheat-panel {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 4, 15, 0.92);
+    border: 1px solid rgba(255, 0, 80, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    z-index: 100;
+    min-width: 160px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 30px rgba(255, 0, 80, 0.08);
+  }
+  .cheat-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255, 60, 100, 0.5);
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .cheat-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .cheat-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255, 0, 80, 0.15);
+    border-radius: 6px;
+    color: #ff3c64;
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    outline: none;
+    text-align: center;
+    -moz-appearance: textfield;
+    transition: border-color 0.3s;
+    margin-bottom: 10px;
+  }
+  .cheat-input::-webkit-outer-spin-button,
+  .cheat-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .cheat-input:focus { border-color: rgba(255, 0, 80, 0.4); }
+
+  .cheat-presets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+  .cheat-preset {
+    padding: 5px 0;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 5px;
+    color: rgba(255,255,255,0.35);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .cheat-preset:hover {
+    background: rgba(255, 0, 80, 0.1);
+    border-color: rgba(255, 0, 80, 0.25);
+    color: #ff3c64;
+  }
+  .cheat-status {
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.2);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  .cheat-status.active {
+    color: rgba(255, 60, 100, 0.6);
+  }
+  .cheat-toggle-btn {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 101;
+    width: 32px; height: 32px;
+    background: rgba(255, 0, 80, 0.08);
+    border: 1px solid rgba(255, 0, 80, 0.15);
+    border-radius: 6px;
+    color: rgba(255, 60, 100, 0.3);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cheat-toggle-btn:hover {
+    background: rgba(255, 0, 80, 0.15);
+    color: #ff3c64;
+  }
+
+  /* Insufficient funds modal */
+  .funds-modal-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+    animation: modalFadeIn 0.3s ease;
+    display: none;
+  }
+  .funds-modal {
+    text-align: center;
+    padding: 20px;
+    animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .funds-icon {
+    font-size: 42px;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+  .funds-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #ff4455;
+    margin-bottom: 6px;
+  }
+  .funds-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 20px;
+  }
+  .funds-btn {
+    padding: 10px 32px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.5);
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 0 6px;
+  }
+  .funds-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .funds-btn.reset {
+    background: linear-gradient(135deg, #0066ff, #00ccff);
+    border: none; color: #fff;
+    box-shadow: 0 4px 15px rgba(0, 150, 255, 0.2);
+  }
+  .funds-btn.reset:hover { box-shadow: 0 4px 25px rgba(0, 150, 255, 0.4); transform: translateY(-1px); }
+  /* ══════ RESPONSIVE ══════ */
+  @media (max-width: 768px) {
+    .hud { padding: 8px 12px; }
+    .multiplier-display { font-size: 32px !important; }
+    .depth-label { font-size: 9px; }
+    .depth-value { font-size: 16px; }
+    .zone-name { font-size: 8px; letter-spacing: 2px; padding: 2px 6px; }
+    .controls { padding: 10px 12px; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .bet-stepper { border-radius: 8px; }
+    .bet-btn { width: 36px; height: 36px; font-size: 18px; }
+    .bet-input { width: 60px; font-size: 13px; padding: 6px 2px; }
+    .btn-main { padding: 12px 16px; font-size: 12px; letter-spacing: 1px; min-width: 100px; }
+    .balance-display { font-size: 11px; min-width: 80px; }
+    .balance-amount { font-size: 15px; }
+    .bet-label { font-size: 9px; }
+    .history-bar { top: 52px; left: 12px; gap: 4px; }
+    .history-item { font-size: 9px; padding: 2px 5px; }
+    .status-text { font-size: 20px !important; letter-spacing: 3px; }
+    .status-text.crashed { font-size: 28px !important; }
+    .status-text.cashedout { font-size: 24px !important; }
+    .pressure-gauge { right: 10px; height: 200px; width: 5px; }
+    .sound-toggle { width: 30px; height: 30px; font-size: 14px; top: 10px; right: 40px; }
+    .cheat-panel { min-width: 140px; padding: 12px; right: 10px; }
+    .cheat-toggle-btn { width: 28px; height: 28px; font-size: 12px; right: 10px; bottom: 10px; }
+    .funds-title { font-size: 14px; letter-spacing: 2px; }
+    .funds-sub { font-size: 12px; }
+    .funds-btn { padding: 8px 20px; font-size: 10px; }
+  }
+
+  @media (max-width: 480px) {
+    .multiplier-display { font-size: 26px !important; }
+    .controls { padding: 8px 8px; gap: 6px; }
+    .bet-section { order: 1; }
+    .btn-main { order: 2; flex: 1; padding: 10px 10px; font-size: 11px; min-width: 80px; }
+    .balance-display { order: 3; min-width: 70px; }
+    .balance-amount { font-size: 13px; }
+    .bet-btn { width: 32px; height: 32px; font-size: 16px; }
+    .bet-input { width: 50px; font-size: 12px; }
+    .pressure-gauge { height: 150px; }
+    .status-text { font-size: 16px !important; letter-spacing: 2px; }
+    .history-bar { display: none; }
+  }
+
+  @media (max-height: 500px) {
+    .controls { padding: 6px 12px; }
+    .btn-main { padding: 8px 14px; }
+    .bet-btn { width: 32px; height: 32px; }
+    .pressure-gauge { height: 120px; }
+  }
+
+  /* Sound Modal */
+  .sound-modal-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0, 4, 12, 0.92);
+    backdrop-filter: blur(20px);
+    display: flex; align-items: center; justify-content: center;
+    animation: modalFadeIn 0.6s ease;
+  }
+  @keyframes modalFadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+  .sound-modal {
+    text-align: center;
+    animation: modalSlideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes modalSlideUp { 0% { transform: translateY(30px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+
+  .modal-icon {
+    width: 80px; height: 80px; margin: 0 auto 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, rgba(0, 200, 255, 0.15), rgba(0, 50, 120, 0.1));
+    border: 1px solid rgba(0, 200, 255, 0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+    animation: iconPulse 2s ease infinite;
+  }
+  @keyframes iconPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(0, 200, 255, 0.1); }
+    50% { box-shadow: 0 0 40px rgba(0, 200, 255, 0.25); }
+  }
+
+  .modal-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(22px, 5vw, 32px); font-weight: 900;
+    letter-spacing: clamp(3px, 1vw, 6px);
+    background: linear-gradient(135deg, #00e5ff, #7b68ee);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  .modal-sub {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px; color: rgba(255,255,255,0.35);
+    letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .modal-buttons { display: flex; gap: 14px; justify-content: center; }
+
+  .modal-btn {
+    padding: clamp(10px, 2vh, 14px) clamp(20px, 5vw, 36px); border: none; border-radius: 10px;
+    font-family: 'Orbitron', monospace; font-size: clamp(10px, 1.5vw, 13px); font-weight: 700;
+    letter-spacing: 2px; cursor: pointer; transition: all 0.3s;
+    text-transform: uppercase;
+  }
+
+  .modal-btn.yes {
+    background: linear-gradient(135deg, #0066ff, #00ccff);
+    color: #fff; box-shadow: 0 4px 25px rgba(0, 150, 255, 0.3);
+  }
+  .modal-btn.yes:hover { box-shadow: 0 4px 35px rgba(0, 150, 255, 0.5); transform: translateY(-2px); }
+
+  .modal-btn.no {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.4);
+  }
+  .modal-btn.no:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); transform: translateY(-2px); }
+
+  .sound-toggle {
+    position: absolute; top: 16px; right: 70px;
+    z-index: 15; pointer-events: all;
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; color: rgba(255,255,255,0.4);
+    font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .sound-toggle:hover { background: rgba(0,200,255,0.1); border-color: rgba(0,200,255,0.3); color: #00e5ff; }
+  .sound-toggle.muted { color: rgba(255,80,80,0.5); }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+  <button class="sound-toggle" id="soundToggle" onclick="toggleSound()" title="Toggle sound">🔊</button>
+
+  <div class="hud">
+    <div>
+      <div class="multiplier-display zone-surface" id="multiplier">0.80x</div>
+    </div>
+    <div class="depth-info">
+      <div class="depth-label">Depth</div>
+      <div class="depth-value" id="depthValue" style="color:rgba(0,200,255,0.8)">0m</div>
+      <div class="zone-name surface" id="zoneName">SURFACE</div>
+    </div>
+  </div>
+
+  <div class="history-bar" id="historyBar"></div>
+  <div class="status-text waiting visible" id="statusText">PLACE YOUR BET</div>
+
+  <div class="pressure-gauge">
+    <div class="pressure-fill" id="pressureFill" style="height:0%; background: #00e5ff;"></div>
+  </div>
+
+  <div class="warning-overlay" id="warningOverlay"></div>
+
+  <div class="controls">
+    <div class="bet-section">
+      <div>
+        <div class="bet-label">Bet</div>
+        <div class="bet-stepper">
+          <button class="bet-btn minus" id="betMinus" onclick="adjustBet(-5)">−</button>
+          <input type="number" class="bet-input" id="betInput" value="100" min="100" max="1000" step="5">
+          <button class="bet-btn plus" id="betPlus" onclick="adjustBet(5)">+</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn-main btn-dive" id="actionBtn" onclick="handleAction()">DIVE</button>
+    <div class="balance-display">
+      <div class="bet-label">Balance</div>
+      <div class="balance-amount" id="balanceDisplay">$1,000.00</div>
+    </div>
+  </div>
+
+  <div class="funds-modal-overlay" id="fundsModal">
+    <div class="funds-modal">
+      <div class="funds-icon">💀</div>
+      <div class="funds-title">INSUFFICIENT FUNDS</div>
+      <div class="funds-sub">You've been consumed by the abyss</div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button class="funds-btn reset" onclick="resetBalance()">RESET $1,000</button>
+        <button class="funds-btn" onclick="hideFunds()">CLOSE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cheat Panel -->
+<button class="cheat-toggle-btn" id="cheatToggleBtn" onclick="toggleCheat()">⚙</button>
+<div class="cheat-panel" id="cheatPanel" style="display:none;">
+  <div class="cheat-title">⚙ CHEAT PANEL</div>
+  <div class="cheat-label">Next crash point (x)</div>
+  <input type="number" class="cheat-input" id="cheatInput" value="" placeholder="e.g. 5.00" min="1" max="1000" step="0.1">
+  <div class="cheat-presets">
+    <button class="cheat-preset" onclick="setCheat(1.0)">1.0x</button>
+    <button class="cheat-preset" onclick="setCheat(2.0)">2x</button>
+    <button class="cheat-preset" onclick="setCheat(5.0)">5x</button>
+    <button class="cheat-preset" onclick="setCheat(10)">10x</button>
+    <button class="cheat-preset" onclick="setCheat(25)">25x</button>
+    <button class="cheat-preset" onclick="setCheat(50)">50x</button>
+    <button class="cheat-preset" onclick="setCheat(100)">100x</button>
+  </div>
+  <div class="cheat-status" id="cheatStatus">No cheat active</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// AUDIO ENGINE — Procedural underwater sounds
+// ══════════════════════════════════════════════════
+let audioEnabled = false;
+let audioCtx = null;
+let masterGain = null;
+let ambientNodes = [];
+let currentZoneAudio = 'surface';
+let depthDroneGain = null;
+let depthDroneFilter = null;
+
+function initSound(enable) {
+  document.getElementById('soundModal').style.display = 'none';
+  audioEnabled = enable;
+  if (!enable) {
+    document.getElementById('soundToggle').textContent = '🔇';
+    document.getElementById('soundToggle').classList.add('muted');
+    return;
+  }
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.6;
+  masterGain.connect(audioCtx.destination);
+  startAmbience();
+}
+
+function toggleSound() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.6;
+    masterGain.connect(audioCtx.destination);
+    audioEnabled = true;
+    startAmbience();
+    document.getElementById('soundToggle').textContent = '🔊';
+    document.getElementById('soundToggle').classList.remove('muted');
+    return;
+  }
+  audioEnabled = !audioEnabled;
+  masterGain.gain.linearRampToValueAtTime(audioEnabled ? 0.6 : 0, audioCtx.currentTime + 0.3);
+  document.getElementById('soundToggle').textContent = audioEnabled ? '🔊' : '🔇';
+  document.getElementById('soundToggle').classList.toggle('muted', !audioEnabled);
+}
+
+// ── Noise buffer generator ──
+function createNoiseBuffer(duration, type) {
+  const len = audioCtx.sampleRate * duration;
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  if (type === 'white') {
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  } else if (type === 'brown') {
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.04) * 0.99;
+      data[i] = last * 4;
+    }
+  } else { // pink-ish
+    let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886*b0 + w*0.0555179; b1 = 0.99332*b1 + w*0.0750759;
+      b2 = 0.96900*b2 + w*0.1538520; b3 = 0.86650*b3 + w*0.3104856;
+      b4 = 0.55000*b4 + w*0.5329522; b5 = -0.7616*b5 - w*0.0168980;
+      data[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.08;
+      b6 = w * 0.115926;
+    }
+  }
+  return buf;
+}
+
+// ── Ambient underwater drone ──
+function startAmbience() {
+  if (!audioCtx) return;
+
+  // Deep ocean rumble (brown noise through low pass)
+  const rumbleNoise = audioCtx.createBufferSource();
+  rumbleNoise.buffer = createNoiseBuffer(4, 'brown');
+  rumbleNoise.loop = true;
+  const rumbleFilter = audioCtx.createBiquadFilter();
+  rumbleFilter.type = 'lowpass';
+  rumbleFilter.frequency.value = 120;
+  rumbleFilter.Q.value = 1;
+  const rumbleGain = audioCtx.createGain();
+  rumbleGain.gain.value = 0.25;
+  rumbleNoise.connect(rumbleFilter);
+  rumbleFilter.connect(rumbleGain);
+  rumbleGain.connect(masterGain);
+  rumbleNoise.start();
+
+  // Underwater ambience (filtered brown noise — no bandpass)
+  const ambNoise = audioCtx.createBufferSource();
+  ambNoise.buffer = createNoiseBuffer(6, 'brown');
+  ambNoise.loop = true;
+  const ambFilter = audioCtx.createBiquadFilter();
+  ambFilter.type = 'lowpass';
+  ambFilter.frequency.value = 100;
+  ambFilter.Q.value = 0.3;
+  const ambGain = audioCtx.createGain();
+  ambGain.gain.value = 0.06;
+  ambNoise.connect(ambFilter);
+  ambFilter.connect(ambGain);
+  ambGain.connect(masterGain);
+  ambNoise.start();
+
+  // Depth-responsive drone
+  const droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'sine';
+  droneOsc.frequency.value = 55;
+  depthDroneFilter = audioCtx.createBiquadFilter();
+  depthDroneFilter.type = 'lowpass';
+  depthDroneFilter.frequency.value = 80;
+  depthDroneGain = audioCtx.createGain();
+  depthDroneGain.gain.value = 0;
+  droneOsc.connect(depthDroneFilter);
+  depthDroneFilter.connect(depthDroneGain);
+  depthDroneGain.connect(masterGain);
+  droneOsc.start();
+
+  // Sub bass pulse
+  const subOsc = audioCtx.createOscillator();
+  subOsc.type = 'sine';
+  subOsc.frequency.value = 32;
+  const subGain = audioCtx.createGain();
+  subGain.gain.value = 0;
+  subOsc.connect(subGain);
+  subGain.connect(masterGain);
+  subOsc.start();
+
+  ambientNodes = [
+    { src: rumbleNoise, gain: rumbleGain, filter: rumbleFilter },
+    { src: ambNoise, gain: ambGain, filter: ambFilter },
+    { src: droneOsc, gain: depthDroneGain, filter: depthDroneFilter },
+    { src: subOsc, gain: subGain },
+  ];
+}
+
+// ── Update ambient based on depth ──
+function updateAmbientAudio(mult) {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+
+  // Depth drone gets louder and lower as you go deep
+  if (depthDroneGain) {
+    const droneVol = Math.min(0.2, Math.max(0, (mult - 0.80) * 0.015));
+    depthDroneGain.gain.linearRampToValueAtTime(Math.max(0, droneVol), t + 0.1);
+  }
+  if (depthDroneFilter) {
+    depthDroneFilter.frequency.linearRampToValueAtTime(40 + Math.max(0, (15 - mult)) * 2.5, t + 0.2);
+  }
+  // Sub bass pulse in deep zones
+  if (ambientNodes[3] && mult > 5) {
+    const subVol = Math.min(0.15, (mult - 5) * 0.008);
+    ambientNodes[3].gain.gain.linearRampToValueAtTime(subVol, t + 0.1);
+  } else if (ambientNodes[3]) {
+    ambientNodes[3].gain.gain.linearRampToValueAtTime(0, t + 0.3);
+  }
+}
+
+// ── Warning sound near crash ──
+function updateWarningAudio(proximity) {
+  // Removed — no audio warning before kraken
+}
+
+// ── One-shot sound effects ──
+function playDiveAmbientSound() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+  const zone = getZone(multiplier);
+  const roll = Math.random();
+
+  if (zone.class === 'surface' || zone.class === 'twilight') {
+    // Deep water current rush
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = createNoiseBuffer(2.0, 'brown');
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.setValueAtTime(60 + Math.random() * 40, t);
+    filt.frequency.linearRampToValueAtTime(40, t + 1.5);
+    filt.Q.value = 0.3;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.06 + Math.random() * 0.03, t + 0.4);
+    g.gain.linearRampToValueAtTime(0.03, t + 1.2);
+    g.gain.linearRampToValueAtTime(0, t + 1.8);
+    noise.connect(filt); filt.connect(g); g.connect(masterGain);
+    noise.start(t);
+
+  } else if (zone.class === 'midnight') {
+    if (roll < 0.5) {
+      // Pressure groan — very low sawtooth, heavily filtered
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sawtooth';
+      const freq = 28 + Math.random() * 15;
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.linearRampToValueAtTime(freq * 0.8, t + 2.0);
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.value = 60;
+      filt.Q.value = 0.5;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.06, t + 0.5);
+      g.gain.linearRampToValueAtTime(0.03, t + 1.5);
+      g.gain.linearRampToValueAtTime(0, t + 2.2);
+      osc.connect(filt); filt.connect(g); g.connect(masterGain);
+      osc.start(t); osc.stop(t + 2.3);
+    } else {
+      // Low rumble shift
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = createNoiseBuffer(2.5, 'brown');
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(80, t);
+      filt.frequency.linearRampToValueAtTime(30, t + 2.0);
+      filt.Q.value = 0.3;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.08, t + 0.6);
+      g.gain.linearRampToValueAtTime(0, t + 2.3);
+      noise.connect(filt); filt.connect(g); g.connect(masterGain);
+      noise.start(t);
+    }
+  } else {
+    // ABYSS
+    if (roll < 0.5) {
+      // Sub pressure pulse
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(22 + Math.random() * 12, t);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.12, t + 0.4);
+      g.gain.linearRampToValueAtTime(0.06, t + 1.0);
+      g.gain.linearRampToValueAtTime(0, t + 1.8);
+      osc.connect(g); g.connect(masterGain);
+      osc.start(t); osc.stop(t + 1.8);
+    } else {
+      // Deep brown swell
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = createNoiseBuffer(3.0, 'brown');
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(40, t);
+      filt.frequency.linearRampToValueAtTime(70, t + 1.0);
+      filt.frequency.linearRampToValueAtTime(25, t + 2.5);
+      filt.Q.value = 0.3;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.07, t + 0.8);
+      g.gain.linearRampToValueAtTime(0, t + 2.8);
+      noise.connect(filt); filt.connect(g); g.connect(masterGain);
+      noise.start(t);
+    }
+  }
+}
+
+function playDiveSound() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+
+  // Layer 1: Initial "whoosh" swooping down — pitched sweep
+  const swoopOsc = audioCtx.createOscillator();
+  swoopOsc.type = 'sine';
+  swoopOsc.frequency.setValueAtTime(400, t);
+  swoopOsc.frequency.exponentialRampToValueAtTime(55, t + 0.6);
+  const swoopGain = audioCtx.createGain();
+  swoopGain.gain.setValueAtTime(0.15, t);
+  swoopGain.gain.linearRampToValueAtTime(0.12, t + 0.15);
+  swoopGain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+  const swoopFilter = audioCtx.createBiquadFilter();
+  swoopFilter.type = 'lowpass';
+  swoopFilter.frequency.setValueAtTime(1200, t);
+  swoopFilter.frequency.exponentialRampToValueAtTime(80, t + 0.6);
+  swoopOsc.connect(swoopFilter);
+  swoopFilter.connect(swoopGain);
+  swoopGain.connect(masterGain);
+  swoopOsc.start(t);
+  swoopOsc.stop(t + 0.7);
+
+  // Layer 2: Muffled water rush — brown noise with envelope
+  const rush = audioCtx.createBufferSource();
+  rush.buffer = createNoiseBuffer(1.2, 'brown');
+  const rushFilter = audioCtx.createBiquadFilter();
+  rushFilter.type = 'lowpass';
+  rushFilter.frequency.setValueAtTime(600, t);
+  rushFilter.frequency.linearRampToValueAtTime(900, t + 0.15);
+  rushFilter.frequency.exponentialRampToValueAtTime(120, t + 1.0);
+  rushFilter.Q.value = 2;
+  const rushGain = audioCtx.createGain();
+  rushGain.gain.setValueAtTime(0, t);
+  rushGain.gain.linearRampToValueAtTime(0.18, t + 0.05);
+  rushGain.gain.linearRampToValueAtTime(0.12, t + 0.25);
+  rushGain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+  rush.connect(rushFilter);
+  rushFilter.connect(rushGain);
+  rushGain.connect(masterGain);
+  rush.start(t);
+
+  // Layer 3: Deep body thud — the moment you hit water
+  const thud = audioCtx.createOscillator();
+  thud.type = 'sine';
+  thud.frequency.setValueAtTime(90, t + 0.03);
+  thud.frequency.exponentialRampToValueAtTime(28, t + 0.4);
+  const thudGain = audioCtx.createGain();
+  thudGain.gain.setValueAtTime(0, t);
+  thudGain.gain.linearRampToValueAtTime(0.22, t + 0.04);
+  thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  thud.connect(thudGain);
+  thudGain.connect(masterGain);
+  thud.start(t);
+  thud.stop(t + 0.5);
+
+  // Layer 4: High bubble scatter — tiny pops when entering water
+  for (let i = 0; i < 5; i++) {
+    const delay = 0.06 + Math.random() * 0.2;
+    const bOsc = audioCtx.createOscillator();
+    bOsc.type = 'sine';
+    const bFreq = 800 + Math.random() * 1800;
+    bOsc.frequency.setValueAtTime(bFreq, t + delay);
+    bOsc.frequency.exponentialRampToValueAtTime(bFreq * 0.4, t + delay + 0.08);
+    const bGain = audioCtx.createGain();
+    bGain.gain.setValueAtTime(0.025 + Math.random() * 0.02, t + delay);
+    bGain.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.1);
+    const bFilter = audioCtx.createBiquadFilter();
+    bFilter.type = 'bandpass';
+    bFilter.frequency.value = 1500;
+    bFilter.Q.value = 3;
+    bOsc.connect(bFilter);
+    bFilter.connect(bGain);
+    bGain.connect(masterGain);
+    bOsc.start(t + delay);
+    bOsc.stop(t + delay + 0.1);
+  }
+
+  // Layer 5: Pressure equalizing — descending resonant tone
+  const pressOsc = audioCtx.createOscillator();
+  pressOsc.type = 'triangle';
+  pressOsc.frequency.setValueAtTime(180, t + 0.2);
+  pressOsc.frequency.exponentialRampToValueAtTime(40, t + 1.0);
+  const pressFilter = audioCtx.createBiquadFilter();
+  pressFilter.type = 'lowpass';
+  pressFilter.frequency.value = 250;
+  pressFilter.Q.value = 5;
+  const pressGain = audioCtx.createGain();
+  pressGain.gain.setValueAtTime(0, t + 0.2);
+  pressGain.gain.linearRampToValueAtTime(0.06, t + 0.35);
+  pressGain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+  pressOsc.connect(pressFilter);
+  pressFilter.connect(pressGain);
+  pressGain.connect(masterGain);
+  pressOsc.start(t + 0.2);
+  pressOsc.stop(t + 1.0);
+}
+
+function playCashOutSound() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+  // Rising chime arpeggio
+  const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0, t + i * 0.08);
+    gain.gain.linearRampToValueAtTime(0.1, t + i * 0.08 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.4);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(t + i * 0.08);
+    osc.stop(t + i * 0.08 + 0.4);
+
+    // Harmonic shimmer
+    const osc2 = audioCtx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = freq * 2;
+    const gain2 = audioCtx.createGain();
+    gain2.gain.setValueAtTime(0, t + i * 0.08);
+    gain2.gain.linearRampToValueAtTime(0.03, t + i * 0.08 + 0.02);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.5);
+    osc2.connect(gain2);
+    gain2.connect(masterGain);
+    osc2.start(t + i * 0.08);
+    osc2.stop(t + i * 0.08 + 0.5);
+  });
+  // Success shimmer noise
+  const shimmer = audioCtx.createBufferSource();
+  shimmer.buffer = createNoiseBuffer(0.6, 'white');
+  const sFilter = audioCtx.createBiquadFilter();
+  sFilter.type = 'highpass';
+  sFilter.frequency.value = 4000;
+  const sGain = audioCtx.createGain();
+  sGain.gain.setValueAtTime(0.04, t + 0.1);
+  sGain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+  shimmer.connect(sFilter);
+  sFilter.connect(sGain);
+  sGain.connect(masterGain);
+  shimmer.start(t + 0.1);
+}
+
+function playKrakenSound() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+
+  // Massive sub boom
+  const boom = audioCtx.createOscillator();
+  boom.type = 'sine';
+  boom.frequency.setValueAtTime(50, t);
+  boom.frequency.exponentialRampToValueAtTime(15, t + 1.5);
+  const boomG = audioCtx.createGain();
+  boomG.gain.setValueAtTime(0.4, t);
+  boomG.gain.linearRampToValueAtTime(0.3, t + 0.3);
+  boomG.gain.exponentialRampToValueAtTime(0.001, t + 2);
+  boom.connect(boomG);
+  boomG.connect(masterGain);
+  boom.start(t);
+  boom.stop(t + 2);
+
+  // Horror screech
+  const screech = audioCtx.createOscillator();
+  screech.type = 'sawtooth';
+  screech.frequency.setValueAtTime(200, t);
+  screech.frequency.exponentialRampToValueAtTime(60, t + 1.2);
+  const screechFilter = audioCtx.createBiquadFilter();
+  screechFilter.type = 'lowpass';
+  screechFilter.frequency.setValueAtTime(800, t);
+  screechFilter.frequency.exponentialRampToValueAtTime(100, t + 1.5);
+  screechFilter.Q.value = 8;
+  const screechG = audioCtx.createGain();
+  screechG.gain.setValueAtTime(0.12, t);
+  screechG.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+  screech.connect(screechFilter);
+  screechFilter.connect(screechG);
+  screechG.connect(masterGain);
+  screech.start(t);
+  screech.stop(t + 1.5);
+
+  // Water chaos burst
+  const chaos = audioCtx.createBufferSource();
+  chaos.buffer = createNoiseBuffer(2, 'brown');
+  const chaosFilter = audioCtx.createBiquadFilter();
+  chaosFilter.type = 'lowpass';
+  chaosFilter.frequency.setValueAtTime(1500, t);
+  chaosFilter.frequency.exponentialRampToValueAtTime(80, t + 2);
+  chaosFilter.Q.value = 3;
+  const chaosG = audioCtx.createGain();
+  chaosG.gain.setValueAtTime(0.25, t);
+  chaosG.gain.exponentialRampToValueAtTime(0.001, t + 2);
+  chaos.connect(chaosFilter);
+  chaosFilter.connect(chaosG);
+  chaosG.connect(masterGain);
+  chaos.start(t);
+
+  // Metallic impact hits
+  [0, 0.15, 0.35].forEach(delay => {
+    const hit = audioCtx.createOscillator();
+    hit.type = 'square';
+    hit.frequency.setValueAtTime(40 + Math.random() * 20, t + delay);
+    hit.frequency.exponentialRampToValueAtTime(20, t + delay + 0.3);
+    const hitG = audioCtx.createGain();
+    hitG.gain.setValueAtTime(0.15, t + delay);
+    hitG.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.3);
+    hit.connect(hitG);
+    hitG.connect(masterGain);
+    hit.start(t + delay);
+    hit.stop(t + delay + 0.3);
+  });
+}
+
+function playZoneTransition(zoneName) {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+  // Whoosh + tone
+  const whoosh = audioCtx.createBufferSource();
+  whoosh.buffer = createNoiseBuffer(0.5, 'pink');
+  const wFilter = audioCtx.createBiquadFilter();
+  wFilter.type = 'bandpass';
+  wFilter.frequency.setValueAtTime(800, t);
+  wFilter.frequency.exponentialRampToValueAtTime(200, t + 0.4);
+  wFilter.Q.value = 2;
+  const wGain = audioCtx.createGain();
+  wGain.gain.setValueAtTime(0.08, t);
+  wGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  whoosh.connect(wFilter);
+  wFilter.connect(wGain);
+  wGain.connect(masterGain);
+  whoosh.start(t);
+
+  // Zone-specific tone
+  const tones = { twilight: [220, 330], midnight: [146, 174], abyss: [65, 82] };
+  const freqs = tones[zoneName];
+  if (freqs) {
+    freqs.forEach(f => {
+      const o = audioCtx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.06, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+      o.connect(g);
+      g.connect(masterGain);
+      o.start(t);
+      o.stop(t + 0.8);
+    });
+  }
+}
+
+function playClickSound() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(1200, t);
+  o.frequency.exponentialRampToValueAtTime(800, t + 0.04);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.06, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  o.connect(g);
+  g.connect(masterGain);
+  o.start(t);
+  o.stop(t + 0.06);
+}
+
+let bubbleSoundTimer = 0;
+let breathTimer = 0;
+let breathPhase = 'in'; // 'in' or 'out'
+let breathCycleTime = 3.0; // seconds per full breath cycle
+
+function playBreathIn() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+  const stress = Math.min(1, (multiplier - 0.8) * 0.05);
+  const duration = 1.1 - stress * 0.3;
+
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = createNoiseBuffer(duration + 0.3, 'brown');
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.setValueAtTime(50, t);
+  filt.frequency.linearRampToValueAtTime(80 + stress * 15, t + duration * 0.5);
+  filt.frequency.linearRampToValueAtTime(40, t + duration);
+  filt.Q.value = 0.3;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.22 + stress * 0.06, t + 0.15);
+  g.gain.linearRampToValueAtTime(0.18 + stress * 0.05, t + duration * 0.6);
+  g.gain.linearRampToValueAtTime(0, t + duration);
+  noise.connect(filt); filt.connect(g); g.connect(masterGain);
+  noise.start(t);
+}
+
+function playBreathOut() {
+  if (!audioCtx || !audioEnabled) return;
+  const t = audioCtx.currentTime;
+  const stress = Math.min(1, (multiplier - 0.8) * 0.05);
+  const duration = 1.4 - stress * 0.4;
+
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = createNoiseBuffer(duration + 0.4, 'brown');
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.setValueAtTime(70 + stress * 10, t);
+  filt.frequency.linearRampToValueAtTime(35, t + duration);
+  filt.Q.value = 0.3;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.25 + stress * 0.06, t + 0.1);
+  g.gain.linearRampToValueAtTime(0.15 + stress * 0.04, t + duration * 0.5);
+  g.gain.linearRampToValueAtTime(0, t + duration + 0.1);
+  noise.connect(filt); filt.connect(g); g.connect(masterGain);
+  noise.start(t);
+}
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+const app = new PIXI.Application({
+  view: document.getElementById('gameCanvas'),
+  width: W, height: H,
+  backgroundColor: 0x001830,
+  antialias: true,
+  resizeTo: window,
+});
+
+function handleResize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  app.renderer.resize(W, H);
+}
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => setTimeout(handleResize, 200));
+
+// ── State ──
+let state = 'idle';
+let balance = 1000;
+let bet = 100;
+let multiplier = 0.80;
+let depth = 0;
+let crashPoint = 0;
+let elapsedTime = 0;
+let diveTime = 0;
+let diverY = H * 0.33;
+let targetDiverY = H * 0.33;
+let scrollOffset = 0;
+let history = [];
+
+// DOM
+const multiplierEl = document.getElementById('multiplier');
+const depthValueEl = document.getElementById('depthValue');
+const zoneNameEl = document.getElementById('zoneName');
+const statusText = document.getElementById('statusText');
+const actionBtn = document.getElementById('actionBtn');
+const betInput = document.getElementById('betInput');
+const balanceDisplay = document.getElementById('balanceDisplay');
+const pressureFill = document.getElementById('pressureFill');
+const warningOverlay = document.getElementById('warningOverlay');
+const historyBar = document.getElementById('historyBar');
+
+// ══════════════════════════════════════════════════
+// SMOOTH COLOR SYSTEM - continuous gradient stops
+// ══════════════════════════════════════════════════
+const colorStops = [
+  { mult: 0.80, topR: 0.00, topG: 0.26, topB: 0.56, botR: 0.00, botG: 0.13, botB: 0.32 },
+  { mult: 1.0, topR: 0.00, topG: 0.26, topB: 0.56, botR: 0.00, botG: 0.13, botB: 0.32 },
+  { mult: 1.5, topR: 0.00, topG: 0.19, topB: 0.46, botR: 0.00, botG: 0.09, botB: 0.24 },
+  { mult: 2.0, topR: 0.06, topG: 0.07, topB: 0.30, botR: 0.03, botG: 0.03, botB: 0.16 },
+  { mult: 3.5, topR: 0.05, topG: 0.04, topB: 0.22, botR: 0.02, botG: 0.02, botB: 0.11 },
+  { mult: 5.0, topR: 0.04, topG: 0.02, topB: 0.11, botR: 0.02, botG: 0.01, botB: 0.06 },
+  { mult: 10.0, topR: 0.02, topG: 0.01, topB: 0.07, botR: 0.01, botG: 0.005, botB: 0.03 },
+  { mult: 15.0, topR: 0.013, topG: 0.006, topB: 0.035, botR: 0.006, botG: 0.002, botB: 0.015 },
+  { mult: 30.0, topR: 0.006, topG: 0.002, topB: 0.018, botR: 0.002, botG: 0.0, botB: 0.006 },
+];
+
+function lerpColorStops(mult) {
+  let a = colorStops[0], b = colorStops[colorStops.length - 1];
+  for (let i = 0; i < colorStops.length - 1; i++) {
+    if (mult >= colorStops[i].mult && mult <= colorStops[i + 1].mult) {
+      a = colorStops[i]; b = colorStops[i + 1]; break;
+    }
+  }
+  if (mult >= colorStops[colorStops.length - 1].mult) {
+    return { topR: b.topR, topG: b.topG, topB: b.topB, botR: b.botR, botG: b.botG, botB: b.botB };
+  }
+  const range = b.mult - a.mult || 1;
+  const t = Math.max(0, Math.min(1, (mult - a.mult) / range));
+  const st = t * t * (3 - 2 * t); // smoothstep
+  return {
+    topR: a.topR + (b.topR - a.topR) * st, topG: a.topG + (b.topG - a.topG) * st, topB: a.topB + (b.topB - a.topB) * st,
+    botR: a.botR + (b.botR - a.botR) * st, botG: a.botG + (b.botG - a.botG) * st, botB: a.botB + (b.botB - a.botB) * st,
+  };
+}
+
+const zones = [
+  { name: 'SURFACE', minMult: 1.0, class: 'surface' },
+  { name: 'TWILIGHT ZONE', minMult: 2.0, class: 'twilight' },
+  { name: 'MIDNIGHT ZONE', minMult: 5.0, class: 'midnight' },
+  { name: 'THE ABYSS', minMult: 15.0, class: 'abyss' },
+];
+function getZone(mult) {
+  for (let i = zones.length - 1; i >= 0; i--) if (mult >= zones[i].minMult) return zones[i];
+  return zones[0];
+}
+
+// ── Layers ──
+const bgLayer = new PIXI.Container();
+const depthLineLayer = new PIXI.Container();
+const particleLayer = new PIXI.Container();
+const creatureLayer = new PIXI.Container();
+const bubbleTrailLayer = new PIXI.Container();
+const diverLayer = new PIXI.Container();
+const fxLayer = new PIXI.Container();
+const vignetteLayer = new PIXI.Container();
+const krakenLayer = new PIXI.Container();
+app.stage.addChild(bgLayer, depthLineLayer, particleLayer, creatureLayer, bubbleTrailLayer, diverLayer, fxLayer, vignetteLayer, krakenLayer);
+
+// ══════════════════════════════════════════════════
+// BACKGROUND
+// ══════════════════════════════════════════════════
+const bgGfx = new PIXI.Graphics();
+bgLayer.addChild(bgGfx);
+
+let smoothTop = { r: 0, g: 0.26, b: 0.56 };
+let smoothBot = { r: 0, g: 0.13, b: 0.32 };
+
+function drawBackground() {
+  bgGfx.clear();
+  const steps = 32;
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const r = Math.floor(Math.max(0, Math.min(255, (smoothTop.r * (1 - t) + smoothBot.r * t) * 255)));
+    const g = Math.floor(Math.max(0, Math.min(255, (smoothTop.g * (1 - t) + smoothBot.g * t) * 255)));
+    const b = Math.floor(Math.max(0, Math.min(255, (smoothTop.b * (1 - t) + smoothBot.b * t) * 255)));
+    bgGfx.beginFill((r << 16) | (g << 8) | b);
+    bgGfx.drawRect(0, (H / steps) * i, W, H / steps + 1);
+    bgGfx.endFill();
+  }
+}
+
+// ══════════════════════════════════════════════════
+// VIGNETTE (progressive edge darkening)
+// ══════════════════════════════════════════════════
+const vignetteGfx = new PIXI.Graphics();
+vignetteLayer.addChild(vignetteGfx);
+let vignetteStrength = 0;
+
+function drawVignette(s) {
+  vignetteGfx.clear();
+  if (s < 0.01) return;
+  const layers = 10;
+  for (let i = layers; i >= 0; i--) {
+    const t = i / layers;
+    const alpha = s * t * t * 0.65;
+    const m = (1 - t) * 280;
+    vignetteGfx.beginFill(0x000000, alpha);
+    vignetteGfx.drawRect(0, 0, W, m);
+    vignetteGfx.drawRect(0, H - m, W, m);
+    vignetteGfx.drawRect(0, m, m * 0.7, H - m * 2);
+    vignetteGfx.drawRect(W - m * 0.7, m, m * 0.7, H - m * 2);
+    vignetteGfx.endFill();
+  }
+}
+
+// ══════════════════════════════════════════════════
+// LIGHT RAYS (fade out smoothly with depth)
+// ══════════════════════════════════════════════════
+let lightRayAlpha = 1.0;
+const lightRays = [];
+for (let i = 0; i < 6; i++) {
+  const ray = new PIXI.Graphics();
+  bgLayer.addChild(ray);
+  lightRays.push({ gfx: ray, x: Math.random() * W, speed: 0.12 + Math.random() * 0.2, w: 25 + Math.random() * 45, phase: Math.random() * Math.PI * 2 });
+}
+
+function updateLightRays(dt) {
+  const target = multiplier < 1.5 ? 1.0 : multiplier < 2.8 ? Math.max(0, 1 - (multiplier - 1.5) * 0.77) : 0;
+  lightRayAlpha += (target - lightRayAlpha) * dt * 2.5;
+  lightRays.forEach(r => {
+    r.x += r.speed * dt * 18;
+    if (r.x > W + 120) r.x = -120;
+    r.gfx.clear();
+    if (lightRayAlpha > 0.003) {
+      const flicker = 0.028 + Math.sin(elapsedTime * 0.35 + r.phase) * 0.012;
+      r.gfx.alpha = flicker * lightRayAlpha;
+      r.gfx.beginFill(0xffffff);
+      r.gfx.moveTo(r.x, -10);
+      r.gfx.lineTo(r.x + r.w, -10);
+      r.gfx.lineTo(r.x + r.w * 1.8 + 25, H + 10);
+      r.gfx.lineTo(r.x + 25, H + 10);
+      r.gfx.closePath();
+      r.gfx.endFill();
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════
+// DEPTH MARKERS (scroll upward as diver descends)
+// ══════════════════════════════════════════════════
+const depthMarkers = [];
+const MARKER_SPACING = 75;
+let nextMarkerDepth = 50;
+
+function updateDepthMarkers(dt) {
+  if (state !== 'diving') {
+    depthMarkers.forEach(m => { m.gfx.alpha *= 0.93; });
+    for (let i = depthMarkers.length - 1; i >= 0; i--) {
+      if (depthMarkers[i].gfx.alpha < 0.01) {
+        depthLineLayer.removeChild(depthMarkers[i].gfx);
+        depthMarkers[i].gfx.destroy();
+        depthMarkers.splice(i, 1);
+      }
+    }
+    return;
+  }
+
+  const scrollSpeed = Math.max(15, multiplier * 12);
+
+  // Move existing markers up
+  for (let i = depthMarkers.length - 1; i >= 0; i--) {
+    depthMarkers[i].gfx.y -= scrollSpeed * dt;
+    // Fade in/out at edges
+    const fy = depthMarkers[i].gfx.y;
+    if (fy < 50) depthMarkers[i].gfx.alpha = Math.max(0, fy / 50);
+    else if (fy > H - 80) depthMarkers[i].gfx.alpha = Math.max(0, (H - 80 - fy) / (-80) * 0.5);
+    else depthMarkers[i].gfx.alpha = Math.min(depthMarkers[i].gfx.alpha + dt * 2, 0.5);
+
+    if (fy < -30) {
+      depthLineLayer.removeChild(depthMarkers[i].gfx);
+      depthMarkers[i].gfx.destroy();
+      depthMarkers.splice(i, 1);
+    }
+  }
+
+  // Spawn new from bottom
+  const lastY = depthMarkers.length > 0 ? Math.max(...depthMarkers.map(m => m.gfx.y)) : 0;
+  if (depthMarkers.length === 0 || lastY < H - 20) {
+    const g = new PIXI.Graphics();
+    const zone = getZone(multiplier);
+    const lineColors = { surface: 0x00aacc, twilight: 0x6655bb, midnight: 0x553344, abyss: 0x441122 };
+    const lineAlphas = { surface: 0.1, twilight: 0.08, midnight: 0.07, abyss: 0.06 };
+    const lc = lineColors[zone.class];
+    const la = lineAlphas[zone.class];
+
+    // Dashed line effect
+    for (let x = 50; x < W - 50; x += 8) {
+      g.beginFill(lc, la);
+      g.drawRect(x, 0, 4, 1);
+      g.endFill();
+    }
+
+    const mDepth = Math.floor(nextMarkerDepth);
+    nextMarkerDepth += 25 + multiplier * 3;
+
+    const txt = new PIXI.Text(`${mDepth}m`, {
+      fontFamily: 'Orbitron, monospace', fontSize: 9, fill: lc,
+    });
+    txt.x = 50; txt.y = 4; txt.alpha = 0.4;
+    g.addChild(txt);
+
+    g.y = H + 10;
+    g.alpha = 0;
+    depthLineLayer.addChild(g);
+    depthMarkers.push({ gfx: g, depth: mDepth });
+  }
+}
+
+// ══════════════════════════════════════════════════
+// AMBIENT BUBBLES
+// ══════════════════════════════════════════════════
+const bubbles = [];
+function spawnAmbientBubble() {
+  const g = new PIXI.Graphics();
+  const r = 1 + Math.random() * 3;
+  g.beginFill(0xffffff, 0.08 + Math.random() * 0.08);
+  g.drawCircle(0, 0, r);
+  g.endFill();
+  g.beginFill(0xffffff, 0.2);
+  g.drawCircle(-r * 0.3, -r * 0.3, r * 0.2);
+  g.endFill();
+  g.x = Math.random() * W;
+  g.y = H + 10;
+  particleLayer.addChild(g);
+  bubbles.push({ gfx: g, vx: (Math.random() - 0.5) * 0.3, vy: -(0.6 + Math.random() * 1.2), wobble: Math.random() * Math.PI * 2, life: 0 });
+}
+
+function updateBubbles(dt) {
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i];
+    b.life += dt;
+    b.gfx.x += b.vx + Math.sin(b.wobble + b.life * 2.2) * 0.2;
+    b.gfx.y += b.vy;
+    if (state === 'diving') b.gfx.y -= multiplier * 0.4 * dt * 60;
+    b.gfx.alpha = Math.max(0, b.gfx.alpha - dt * 0.015);
+    if (b.gfx.y < -20 || b.gfx.alpha <= 0 || b.life > 12) {
+      particleLayer.removeChild(b.gfx); b.gfx.destroy(); bubbles.splice(i, 1);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// DIVER BUBBLE TRAIL ✨
+// ══════════════════════════════════════════════════
+const diverBubbles = [];
+let diverBubbleTimer = 0;
+
+function spawnDiverBubble() {
+  const g = new PIXI.Graphics();
+  const r = 1 + Math.random() * 5;
+  const isLarge = r > 4;
+
+  // Bubble body
+  g.lineStyle(isLarge ? 0.6 : 0.4, 0xffffff, isLarge ? 0.35 : 0.2);
+  g.beginFill(0xaaddff, isLarge ? 0.06 : 0.03);
+  g.drawCircle(0, 0, r);
+  g.endFill();
+
+  // Specular highlight
+  g.beginFill(0xffffff, isLarge ? 0.45 : 0.3);
+  g.drawEllipse(-r * 0.22, -r * 0.28, r * 0.22, r * 0.12);
+  g.endFill();
+
+  // Spiral outward from diver
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 5 + Math.random() * 15;
+  g.x = diverContainer.x + Math.cos(angle) * dist;
+  g.y = diverContainer.y - 8 + Math.sin(angle) * dist * 0.4;
+
+  bubbleTrailLayer.addChild(g);
+  diverBubbles.push({
+    gfx: g,
+    vx: Math.cos(angle) * (0.3 + Math.random() * 0.8),
+    vy: -(1.2 + Math.random() * 3.5),
+    wobbleFreq: 2 + Math.random() * 4,
+    wobbleAmp: 0.4 + Math.random() * 1.2,
+    wobblePhase: Math.random() * Math.PI * 2,
+    life: 0,
+    maxLife: 1.5 + Math.random() * 3,
+    startScale: 0.2 + Math.random() * 0.8,
+  });
+}
+
+function updateDiverBubbles(dt) {
+  for (let i = diverBubbles.length - 1; i >= 0; i--) {
+    const b = diverBubbles[i];
+    b.life += dt;
+    const t = b.life / b.maxLife;
+
+    b.gfx.x += b.vx + Math.sin(b.wobblePhase + b.life * b.wobbleFreq) * b.wobbleAmp * dt * 60;
+    b.gfx.y += b.vy;
+    if (state === 'diving') b.gfx.y -= multiplier * 0.2 * dt * 60;
+
+    // Grow then pop
+    const sc = t < 0.15 ? t / 0.15 : t < 0.7 ? 1 : 1 - ((t - 0.7) / 0.3);
+    b.gfx.scale.set(b.startScale * Math.max(0, sc));
+    b.gfx.alpha = Math.max(0, 1 - t * t * 0.8);
+
+    // Slow down horizontal
+    b.vx *= 0.995;
+
+    if (t >= 1 || b.gfx.y < -30) {
+      bubbleTrailLayer.removeChild(b.gfx); b.gfx.destroy(); diverBubbles.splice(i, 1);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// PARTICLES (bioluminescent in deep)
+// ══════════════════════════════════════════════════
+const particles = [];
+function spawnParticle() {
+  const g = new PIXI.Graphics();
+  const zone = getZone(multiplier);
+  let color, alpha, size, glow = false;
+
+  if (zone.class === 'midnight' || zone.class === 'abyss') {
+    const colors = [0x00ffff, 0xff00ff, 0x00ff88, 0x8844ff, 0xff4488, 0x44ffcc, 0xffaa00];
+    color = colors[Math.floor(Math.random() * colors.length)];
+    alpha = 0.25 + Math.random() * 0.45;
+    size = 1 + Math.random() * 2.5;
+    glow = true;
+  } else if (zone.class === 'twilight') {
+    const colors = [0x6655bb, 0x4488ff, 0x00aacc, 0x9966ff];
+    color = colors[Math.floor(Math.random() * colors.length)];
+    alpha = 0.08 + Math.random() * 0.15;
+    size = 0.5 + Math.random() * 1.5;
+    glow = Math.random() > 0.6;
+  } else {
+    color = 0xffffff;
+    alpha = 0.03 + Math.random() * 0.06;
+    size = 0.5 + Math.random() * 1.5;
+  }
+
+  if (glow) {
+    g.beginFill(color, alpha * 0.12);
+    g.drawCircle(0, 0, size * 5);
+    g.endFill();
+  }
+  g.beginFill(color, alpha);
+  g.drawCircle(0, 0, size);
+  g.endFill();
+
+  g.x = Math.random() * W;
+  g.y = H + Math.random() * 30;
+  particleLayer.addChild(g);
+  particles.push({
+    gfx: g, vx: (Math.random() - 0.5) * 0.5, vy: -(Math.random() * 0.3 + 0.1),
+    pulseSpeed: 1 + Math.random() * 3, pulseOffset: Math.random() * Math.PI * 2,
+    baseAlpha: alpha, life: 0, maxLife: 4 + Math.random() * 8, glow
+  });
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life += dt;
+    p.gfx.x += p.vx;
+    p.gfx.y += p.vy;
+    if (state === 'diving') p.gfx.y -= multiplier * 0.25 * dt * 60;
+    if (p.glow) {
+      p.gfx.alpha = p.baseAlpha * (0.35 + 0.65 * Math.sin(p.life * p.pulseSpeed + p.pulseOffset));
+    }
+    if (p.gfx.x < -30 || p.gfx.x > W + 30 || p.gfx.y < -30 || p.gfx.y > H + 30 || p.life > p.maxLife) {
+      particleLayer.removeChild(p.gfx); p.gfx.destroy(); particles.splice(i, 1);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// CREATURES
+// ══════════════════════════════════════════════════
+const creatures = [];
+
+function createJellyfish() {
+  const c = new PIXI.Container();
+  const colors = [0xff00ff, 0x00ffff, 0xff4488, 0x8844ff, 0x00ff88, 0xaa66ff];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const size = 10 + Math.random() * 16;
+
+  const glow = new PIXI.Graphics();
+  glow.beginFill(color, 0.04);
+  glow.drawCircle(0, 0, size * 2.8);
+  glow.endFill();
+  c.addChild(glow);
+
+  const bell = new PIXI.Graphics();
+  bell.beginFill(color, 0.14);
+  bell.drawEllipse(0, 0, size, size * 0.6);
+  bell.endFill();
+  bell.beginFill(color, 0.3);
+  bell.drawEllipse(0, 0, size * 0.5, size * 0.32);
+  bell.endFill();
+  c.addChild(bell);
+
+  for (let t = 0; t < 6; t++) {
+    const tent = new PIXI.Graphics();
+    tent.lineStyle(0.7, color, 0.2);
+    const x0 = (t - 2.5) * size * 0.23;
+    tent.moveTo(x0, size * 0.38);
+    tent.bezierCurveTo(x0 + (Math.random() - 0.5) * 8, size * 1.1, x0 + (Math.random() - 0.5) * 10, size * 1.7, x0 + (Math.random() - 0.5) * 6, size * 2.2);
+    c.addChild(tent);
+  }
+
+  return { container: c, type: 'jellyfish', size };
+}
+
+function createAnglerFish() {
+  const c = new PIXI.Container();
+  const size = 18 + Math.random() * 14;
+
+  const body = new PIXI.Graphics();
+  body.beginFill(0x111122, 0.85);
+  body.drawEllipse(0, 0, size, size * 0.55);
+  body.endFill();
+  body.beginFill(0xff0000, 0.7);
+  body.drawCircle(-size * 0.4, -size * 0.12, 2);
+  body.endFill();
+  body.lineStyle(1.5, 0x1a1a3e);
+  body.arc(-size * 0.5, size * 0.12, size * 0.25, -0.5, 0.5);
+
+  const lure = new PIXI.Graphics();
+  lure.lineStyle(0.7, 0x333355, 0.4);
+  lure.moveTo(-size * 0.2, -size * 0.55);
+  lure.quadraticCurveTo(-size * 0.7, -size * 1.1, -size * 0.5, -size * 1.2);
+
+  const lureLight = new PIXI.Graphics();
+  lureLight.beginFill(0xffff44, 0.65);
+  lureLight.drawCircle(0, 0, 2.5);
+  lureLight.endFill();
+  lureLight.beginFill(0xffff44, 0.06);
+  lureLight.drawCircle(0, 0, 20);
+  lureLight.endFill();
+  lureLight.x = -size * 0.5;
+  lureLight.y = -size * 1.2;
+
+  c.addChild(body, lure, lureLight);
+  return { container: c, type: 'angler', size, lureGfx: lureLight };
+}
+
+function createSmallFish() {
+  const c = new PIXI.Container();
+  const fish = new PIXI.Graphics();
+  const colors = [0x4488ff, 0x44ccff, 0x88ccff, 0xffaa44, 0xff7744, 0x44ffaa];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const size = 4 + Math.random() * 8;
+  fish.beginFill(color, 0.5);
+  fish.drawEllipse(0, 0, size, size * 0.35);
+  fish.endFill();
+  fish.beginFill(color, 0.35);
+  fish.moveTo(size * 0.7, 0);
+  fish.lineTo(size * 1.3, -size * 0.35);
+  fish.lineTo(size * 1.3, size * 0.35);
+  fish.closePath();
+  fish.endFill();
+  fish.beginFill(0xffffff, 0.7);
+  fish.drawCircle(-size * 0.5, -size * 0.08, 1.2);
+  fish.endFill();
+  c.addChild(fish);
+  return { container: c, type: 'fish', size };
+}
+
+function spawnCreature() {
+  const zone = getZone(multiplier);
+  let creature;
+  if (zone.class === 'surface') creature = createSmallFish();
+  else if (zone.class === 'twilight') creature = Math.random() > 0.4 ? createJellyfish() : createSmallFish();
+  else if (zone.class === 'midnight') creature = Math.random() > 0.5 ? createAnglerFish() : createJellyfish();
+  else creature = Math.random() > 0.3 ? createAnglerFish() : createJellyfish();
+
+  const fromLeft = Math.random() > 0.5;
+  creature.container.x = fromLeft ? -60 : W + 60;
+  creature.container.y = 50 + Math.random() * (H - 150);
+  creature.vx = fromLeft ? (0.4 + Math.random() * 1.0) : -(0.4 + Math.random() * 1.0);
+  creature.vy = (Math.random() - 0.5) * 0.15;
+  creature.wobble = Math.random() * Math.PI * 2;
+  creature.life = 0;
+  if (fromLeft) creature.container.scale.x = -1;
+  creature.container.alpha = 0; // fade in
+
+  creatureLayer.addChild(creature.container);
+  creatures.push(creature);
+}
+
+function updateCreatures(dt) {
+  for (let i = creatures.length - 1; i >= 0; i--) {
+    const c = creatures[i];
+    c.life += dt;
+    c.container.alpha = Math.min(1, c.life * 2); // smooth fade in
+    c.container.x += c.vx;
+    c.container.y += c.vy + Math.sin(c.wobble + c.life * 1.5) * 0.18;
+    if (state === 'diving') c.container.y -= multiplier * 0.12 * dt * 60;
+    if (c.type === 'jellyfish') c.container.y += Math.sin(c.life * 2) * 0.35;
+    if (c.type === 'angler' && c.lureGfx) c.lureGfx.alpha = 0.4 + Math.sin(c.life * 4) * 0.4;
+
+    if (c.container.x < -120 || c.container.x > W + 120 || c.container.y < -80 || c.container.y > H + 80 || c.life > 25) {
+      creatureLayer.removeChild(c.container); c.container.destroy({ children: true }); creatures.splice(i, 1);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// DIVER
+// ══════════════════════════════════════════════════
+const diverContainer = new PIXI.Container();
+diverContainer.x = W / 2;
+diverContainer.y = H * 0.33;
+
+function drawDiver() {
+  const d = new PIXI.Graphics();
+  d.beginFill(0x1a1a2e);
+  d.drawRoundedRect(-11, -2, 22, 28, 4);
+  d.endFill();
+  d.beginFill(0xccaa00);
+  d.drawCircle(0, -8, 13);
+  d.endFill();
+  d.beginFill(0x88ddff, 0.55);
+  d.drawCircle(0, -8, 9.5);
+  d.endFill();
+  d.lineStyle(1.5, 0xaa8800);
+  d.drawCircle(0, -8, 13);
+  d.lineStyle(3.5, 0x1a1a2e);
+  d.moveTo(-11, 8); d.lineTo(-19, 19);
+  d.moveTo(11, 8); d.lineTo(19, 19);
+  d.moveTo(-5, 26); d.lineTo(-7, 40);
+  d.moveTo(5, 26); d.lineTo(7, 40);
+  d.lineStyle(0);
+  d.beginFill(0x0d0d1e);
+  d.drawEllipse(-9, 43, 7, 2.5);
+  d.drawEllipse(9, 43, 7, 2.5);
+  d.endFill();
+  d.beginFill(0x555566);
+  d.drawRoundedRect(7, -2, 7, 18, 3);
+  d.endFill();
+  d.lineStyle(0.8, 0x777788);
+  d.moveTo(11, 0);
+  d.quadraticCurveTo(17, -8, 11, -16);
+  return d;
+}
+
+const diverGfx = drawDiver();
+diverContainer.addChild(diverGfx);
+
+// Helmet light
+const lightCone = new PIXI.Graphics();
+let lightConeAlpha = 0;
+diverContainer.addChildAt(lightCone, 0);
+
+function updateLightCone() {
+  const target = multiplier > 4 ? Math.min(1, (multiplier - 4) * 0.08) : 0;
+  lightConeAlpha += (target - lightConeAlpha) * 0.03;
+  lightCone.clear();
+  if (lightConeAlpha > 0.003) {
+    const i = 0.06 * lightConeAlpha;
+    lightCone.beginFill(0xffdd44, i);
+    lightCone.moveTo(-4, 2);
+    lightCone.lineTo(-50, 105);
+    lightCone.lineTo(50, 105);
+    lightCone.lineTo(4, 2);
+    lightCone.closePath();
+    lightCone.endFill();
+    lightCone.beginFill(0xffdd44, i * 0.5);
+    lightCone.drawCircle(0, 0, 38);
+    lightCone.endFill();
+  }
+}
+
+diverLayer.addChild(diverContainer);
+
+// ══════════════════════════════════════════════════
+// KRAKEN — Animated beast with live tentacles
+// ══════════════════════════════════════════════════
+const krakenContainer = new PIXI.Container();
+krakenContainer.visible = false;
+krakenLayer.addChild(krakenContainer);
+
+let krakenAnim = 0;
+let krakenActive = false;
+let krakenTentacleDefs = [];
+let krakenGfx = new PIXI.Graphics();
+let krakenFlash = new PIXI.Graphics();
+let krakenInkParticles = [];
+let krakenTargetX = 0;
+let krakenTargetY = 0;
+
+krakenContainer.addChild(krakenGfx);
+krakenContainer.addChild(krakenFlash);
+
+function showKraken() {
+  krakenContainer.visible = true;
+  krakenActive = true;
+  krakenAnim = 0;
+  krakenInkParticles = [];
+
+  krakenTargetX = diverContainer.x;
+  krakenTargetY = diverContainer.y;
+
+  // Define tentacle origins - converge tightly on diver body
+  krakenTentacleDefs = [
+    { ox: -80,  oy: H + 50,  phase: 0,    thick: 12, speed: 2.8, amp: 40, delay: 0,    wrapAngle: 0.3 },
+    { ox: W + 80, oy: H + 50, phase: 1.2, thick: 11, speed: 3.0, amp: 38, delay: 0.03, wrapAngle: -0.3 },
+    { ox: -60,  oy: H * 0.55, phase: 2.5, thick: 10, speed: 2.5, amp: 35, delay: 0.06, wrapAngle: 0.8 },
+    { ox: W + 60, oy: H * 0.55, phase: 3.8, thick: 10, speed: 2.7, amp: 33, delay: 0.08, wrapAngle: -0.8 },
+    { ox: W * 0.18, oy: H + 70, phase: 0.8, thick: 13, speed: 3.2, amp: 42, delay: 0.04, wrapAngle: 0.5 },
+    { ox: W * 0.82, oy: H + 70, phase: 2.0, thick: 13, speed: 3.1, amp: 40, delay: 0.05, wrapAngle: -0.5 },
+    { ox: W * 0.35, oy: H + 90, phase: 4.2, thick: 9,  speed: 2.9, amp: 30, delay: 0.1,  wrapAngle: 1.0 },
+    { ox: W * 0.65, oy: H + 90, phase: 5.0, thick: 9,  speed: 3.3, amp: 30, delay: 0.1,  wrapAngle: -1.0 },
+  ];
+
+  // Red flash
+  krakenFlash.clear();
+  krakenFlash.beginFill(0xff0000, 0.4);
+  krakenFlash.drawRect(0, 0, W, H);
+  krakenFlash.endFill();
+  krakenFlash.alpha = 0;
+}
+
+function drawAnimatedTentacle(g, ox, oy, tx, ty, time, thick, phase, speed, amp, progress, wrapAngle) {
+  const segs = 22;
+  const reachProg = Math.min(1, progress * 1.8);
+
+  const points = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const reachT = Math.min(t, reachProg);
+
+    const bx = ox + (tx - ox) * reachT;
+    const by = oy + (ty - oy) * reachT;
+
+    const waveX = Math.sin(t * Math.PI * 3 + time * speed + phase) * amp * (1 - t * 0.4) * Math.min(1, progress * 3);
+    const waveY = Math.cos(t * Math.PI * 2.5 + time * speed * 0.7 + phase) * amp * 0.3 * (1 - t * 0.5);
+
+    points.push({ x: bx + waveX, y: by + waveY });
+  }
+
+  // Once reached, add wrapping segments that curl around the diver
+  if (reachProg > 0.85) {
+    const wrapProg = (reachProg - 0.85) / 0.15;
+    const last = points[points.length - 1];
+    const wrapSegs = 6;
+    const wrapRadius = 18 + Math.sin(time * 3 + phase) * 3;
+    const baseAngle = wrapAngle || 0;
+    
+    for (let w = 1; w <= wrapSegs; w++) {
+      const wt = w / wrapSegs;
+      const angle = baseAngle + wt * (Math.PI * 1.2) + Math.sin(time * 2.5 + phase) * 0.3;
+      const r = wrapRadius * (1 - wt * 0.3);
+      const wx = tx + Math.cos(angle) * r * Math.min(1, wrapProg * 2);
+      const wy = ty + Math.sin(angle) * r * 0.7 * Math.min(1, wrapProg * 2);
+      points.push({ x: wx, y: wy });
+    }
+  }
+
+  // Draw tentacle body with tapering
+  for (let i = 0; i < points.length - 1; i++) {
+    const t = i / points.length;
+    const taper = thick * (1 - t * 0.75);
+    if (taper < 0.5) continue;
+    g.lineStyle(taper + 2, 0x220011, 0.4 * Math.min(1, progress * 4));
+    g.moveTo(points[i].x, points[i].y);
+    g.lineTo(points[i + 1].x, points[i + 1].y);
+    g.lineStyle(taper, 0x8b1a3a, 0.7 * Math.min(1, progress * 4));
+    g.moveTo(points[i].x, points[i].y);
+    g.lineTo(points[i + 1].x, points[i + 1].y);
+    if (taper > 4) {
+      g.lineStyle(taper * 0.3, 0xcc3355, 0.25 * Math.min(1, progress * 4));
+      g.moveTo(points[i].x - taper * 0.2, points[i].y - taper * 0.15);
+      g.lineTo(points[i + 1].x - taper * 0.2, points[i + 1].y - taper * 0.15);
+    }
+  }
+
+  // Suckers along underside
+  for (let i = 3; i < points.length - 2; i += 2) {
+    const t = i / points.length;
+    const suckerSize = thick * (1 - t * 0.6) * 0.25;
+    if (suckerSize < 0.5) continue;
+    const alpha = 0.35 * Math.min(1, progress * 4);
+    g.beginFill(0xdd4466, alpha);
+    g.drawCircle(points[i].x + suckerSize, points[i].y + suckerSize * 0.5, suckerSize);
+    g.endFill();
+    g.beginFill(0xff6688, alpha * 0.5);
+    g.drawCircle(points[i].x + suckerSize, points[i].y + suckerSize * 0.5, suckerSize * 0.45);
+    g.endFill();
+  }
+}
+
+function spawnKrakenInk() {
+  const g = new PIXI.Graphics();
+  const size = 5 + Math.random() * 20;
+  const color = Math.random() > 0.3 ? 0x220011 : 0x440022;
+  g.beginFill(color, 0.15 + Math.random() * 0.2);
+  g.drawCircle(0, 0, size);
+  g.endFill();
+  if (size > 10) {
+    g.beginFill(color, 0.08);
+    g.drawCircle(0, 0, size * 1.8);
+    g.endFill();
+  }
+  g.x = krakenTargetX + (Math.random() - 0.5) * 200;
+  g.y = krakenTargetY + 50 + Math.random() * 150;
+  krakenContainer.addChildAt(g, 0);
+  krakenInkParticles.push({
+    gfx: g,
+    vx: (Math.random() - 0.5) * 3,
+    vy: -(Math.random() * 2 + 0.5),
+    life: 0,
+    maxLife: 2 + Math.random() * 2,
+    growRate: 1 + Math.random() * 0.5,
+  });
+}
+
+function updateKraken(dt) {
+  if (!krakenActive) return;
+  krakenAnim += dt;
+
+  // Redraw tentacles every frame for live animation
+  krakenGfx.clear();
+  // Track diver's actual position for tentacle targeting
+  const liveX = diverContainer.x;
+  const liveY = diverContainer.y;
+
+  krakenTentacleDefs.forEach(td => {
+    const localTime = krakenAnim - td.delay;
+    if (localTime <= 0) return;
+    const progress = Math.min(1, localTime * 1.5);
+    // Tentacles target tight around the diver body
+    const offsetX = (td.ox < W / 2 ? -8 : 8);
+    const offsetY = (td.oy > H ? 5 : -5);
+    drawAnimatedTentacle(
+      krakenGfx, td.ox, td.oy,
+      liveX + offsetX, liveY + offsetY,
+      krakenAnim, td.thick, td.phase, td.speed, td.amp, progress, td.wrapAngle
+    );
+  });
+
+  // Flash
+  if (krakenAnim < 0.4) {
+    krakenFlash.alpha = Math.abs(Math.sin(krakenAnim * 20)) * 0.45;
+  } else {
+    krakenFlash.alpha = Math.max(0, krakenFlash.alpha - dt * 1.5);
+  }
+
+  // Ink particles
+  if (krakenAnim > 0.1 && krakenAnim < 2.0 && Math.random() > 0.5) {
+    spawnKrakenInk();
+  }
+  for (let i = krakenInkParticles.length - 1; i >= 0; i--) {
+    const p = krakenInkParticles[i];
+    p.life += dt;
+    p.gfx.x += p.vx;
+    p.gfx.y += p.vy;
+    p.gfx.scale.set(1 + p.life * p.growRate * 0.3);
+    p.gfx.alpha = Math.max(0, (1 - p.life / p.maxLife) * 0.3);
+    if (p.life > p.maxLife) {
+      krakenContainer.removeChild(p.gfx);
+      p.gfx.destroy();
+      krakenInkParticles.splice(i, 1);
+    }
+  }
+
+  // Diver reactions - grabbed and struggling, stays visible
+  if (krakenAnim > 0.1) {
+    // Shake gets stronger as tentacles tighten, then settles into held position
+    const grabPhase = Math.min(1, (krakenAnim - 0.1) / 0.6);
+    const shakeAmt = grabPhase < 0.5 
+      ? 4 + grabPhase * 20  // initial violent shake  
+      : 14 - (grabPhase - 0.5) * 16; // settle down once grabbed
+    
+    diverContainer.x = W / 2 + (Math.random() - 0.5) * shakeAmt;
+    diverContainer.y = diverY + (Math.random() - 0.5) * shakeAmt;
+    
+    // Struggling rotation - fast at first, slows as held tight
+    const rotAmt = grabPhase < 0.5 ? 0.3 : 0.3 * (1 - (grabPhase - 0.5) * 1.5);
+    diverContainer.rotation = (Math.random() - 0.5) * Math.max(0.03, rotAmt);
+    
+    // Diver stays fully visible! Never fades
+    diverContainer.alpha = 1;
+  }
+}
+
+function hideKraken() {
+  krakenActive = false;
+  krakenContainer.visible = false;
+  krakenGfx.clear();
+  krakenFlash.alpha = 0;
+  krakenInkParticles.forEach(p => { krakenContainer.removeChild(p.gfx); p.gfx.destroy(); });
+  krakenInkParticles = [];
+  diverContainer.alpha = 1;
+  diverContainer.rotation = 0;
+}
+
+// ── Crash point ──
+let cheatCrashPoint = null;
+
+function generateCrashPoint() {
+  if (cheatCrashPoint !== null) {
+    const cp = cheatCrashPoint;
+    return cp;
+  }
+  if (Math.random() < 0.03) return 1.0;
+  return Math.max(1.0, 1 / (1 - Math.random()) * 0.97);
+}
+
+// ══════════════════════════════════════════════════
+// GAME LOGIC
+// ══════════════════════════════════════════════════
+function handleAction() {
+  if (state === 'idle') startDive();
+  else if (state === 'diving') cashOut();
+}
+
+function startDive() {
+  clampBet();
+  bet = parseInt(betInput.value) || BET_MIN;
+  if (balance < BET_MIN) { showFunds(); return; }
+  if (bet > balance) { bet = Math.floor(balance / BET_STEP) * BET_STEP; if (bet < BET_MIN) { showFunds(); return; } betInput.value = bet; }
+  if (bet < BET_MIN) return;
+  balance -= bet;
+  updateBalance();
+  crashPoint = generateCrashPoint();
+  multiplier = 0.80;
+  depth = 0;
+  diveTime = 0;
+  scrollOffset = 0;
+  nextMarkerDepth = 50;
+  diverY = H * 0.33;
+  targetDiverY = H * 0.33;
+  state = 'diving';
+  playDiveSound();
+  breathTimer = 0;
+  breathPhase = 'in';
+  playBreathIn();
+
+  diverContainer.x = W / 2;
+  diverContainer.y = H * 0.33;
+  diverContainer.alpha = 1;
+  diverContainer.rotation = 0;
+  hideKraken();
+
+  depthMarkers.forEach(m => { depthLineLayer.removeChild(m.gfx); m.gfx.destroy(); });
+  depthMarkers.length = 0;
+
+  actionBtn.textContent = 'CASH OUT';
+  actionBtn.className = 'btn-main btn-cashout';
+  statusText.className = 'status-text';
+  statusText.style.opacity = '0';
+  betInput.disabled = true;
+
+  creatures.forEach(c => { creatureLayer.removeChild(c.container); c.container.destroy({ children: true }); });
+  creatures.length = 0;
+}
+
+function cashOut() {
+  if (state !== 'diving') return;
+  state = 'cashedout';
+  const winnings = bet * multiplier;
+  balance += winnings;
+  updateBalance();
+  addHistory(multiplier, true);
+  statusText.textContent = `+$${winnings.toFixed(2)}`;
+  statusText.className = 'status-text cashedout visible';
+  playCashOutSound();
+  warningOverlay.style.background = 'radial-gradient(circle, rgba(0,200,83,0.25) 0%, transparent 70%)';
+  warningOverlay.style.opacity = '1';
+  setTimeout(() => { warningOverlay.style.opacity = '0'; }, 600);
+  endRound();
+}
+
+function crash() {
+  state = 'crashed';
+  addHistory(multiplier, false);
+  statusText.textContent = 'KRAKEN!';
+  statusText.className = 'status-text crashed visible';
+  showKraken();
+  playKrakenSound();
+  warningOverlay.style.background = 'radial-gradient(circle, rgba(255,0,0,0.35) 0%, transparent 70%)';
+  warningOverlay.style.opacity = '1';
+  setTimeout(() => { warningOverlay.style.opacity = '0'; endRound(); }, 2500);
+}
+
+function endRound() {
+  setTimeout(() => {
+    state = 'idle';
+    actionBtn.textContent = 'DIVE';
+    actionBtn.className = 'btn-main btn-dive';
+    betInput.disabled = false;
+    statusText.textContent = 'PLACE YOUR BET';
+    statusText.className = 'status-text waiting visible';
+    hideKraken();
+    multiplier = 0.80;
+    multiplierEl.textContent = '0.80x';
+    multiplierEl.className = 'multiplier-display zone-surface';
+    depthValueEl.textContent = '0m';
+    depthValueEl.style.color = 'rgba(0,200,255,0.8)';
+    zoneNameEl.textContent = 'SURFACE';
+    zoneNameEl.className = 'zone-name surface';
+    pressureFill.style.height = '0%';
+    pressureFill.style.background = '#00e5ff';
+    diverY = H * 0.33;
+    diverContainer.x = W / 2;
+    diverContainer.y = H * 0.33;
+    currentZoneAudio = 'surface';
+    if (depthDroneGain && audioCtx) depthDroneGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+    if (balance < BET_MIN) { setTimeout(showFunds, 300); }
+  }, state === 'crashed' ? 2500 : 1500);
+}
+
+function updateBalance() { balanceDisplay.textContent = `$${balance.toFixed(2)}`; }
+
+const BET_MIN = 100, BET_MAX = 1000, BET_STEP = 5;
+
+function adjustBet(delta) {
+  playClickSound();
+  let current = parseInt(betInput.value) || BET_MIN;
+  current = Math.max(BET_MIN, Math.min(BET_MAX, current + delta));
+  betInput.value = current;
+  updateBetButtons();
+}
+
+function clampBet() {
+  let v = parseInt(betInput.value);
+  if (isNaN(v) || v < BET_MIN) v = BET_MIN;
+  if (v > BET_MAX) v = BET_MAX;
+  // Snap to step
+  v = Math.round(v / BET_STEP) * BET_STEP;
+  v = Math.max(BET_MIN, Math.min(BET_MAX, v));
+  betInput.value = v;
+  updateBetButtons();
+}
+
+function updateBetButtons() {
+  const v = parseInt(betInput.value) || BET_MIN;
+  document.getElementById('betMinus').disabled = v <= BET_MIN;
+  document.getElementById('betPlus').disabled = v >= BET_MAX;
+}
+
+betInput.addEventListener('change', clampBet);
+betInput.addEventListener('blur', clampBet);
+// Allow holding +/- buttons
+let holdInterval = null;
+const minusBtn = document.getElementById('betMinus');
+const plusBtn = document.getElementById('betPlus');
+minusBtn.addEventListener('mousedown', () => { holdInterval = setInterval(() => adjustBet(-BET_STEP), 120); });
+plusBtn.addEventListener('mousedown', () => { holdInterval = setInterval(() => adjustBet(BET_STEP), 120); });
+minusBtn.addEventListener('touchstart', (e) => { e.preventDefault(); adjustBet(-BET_STEP); holdInterval = setInterval(() => adjustBet(-BET_STEP), 120); });
+plusBtn.addEventListener('touchstart', (e) => { e.preventDefault(); adjustBet(BET_STEP); holdInterval = setInterval(() => adjustBet(BET_STEP), 120); });
+document.addEventListener('mouseup', () => { if (holdInterval) { clearInterval(holdInterval); holdInterval = null; } });
+document.addEventListener('touchend', () => { if (holdInterval) { clearInterval(holdInterval); holdInterval = null; } });
+updateBetButtons();
+
+function addHistory(mult, won) {
+  const cls = mult < 2 ? 'low' : mult < 5 ? 'mid' : mult < 15 ? 'high' : 'extreme';
+  history.unshift({ mult, won, cls });
+  if (history.length > 8) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  historyBar.innerHTML = history.map(h =>
+    `<div class="history-item ${h.cls}">${h.mult.toFixed(2)}x</div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════
+// MAIN LOOP
+// ══════════════════════════════════════════════════
+let bubbleTimer = 0, creatureTimer = 0, particleTimer = 0;
+
+app.ticker.add((delta) => {
+  const dt = delta / 60;
+  elapsedTime += dt;
+  bubbleTimer += dt;
+  creatureTimer += dt;
+  particleTimer += dt;
+
+  // Spawning
+  if (bubbleTimer > 0.08) { bubbleTimer = 0; if (bubbles.length < 40) spawnAmbientBubble(); }
+  if (particleTimer > 0.1) { particleTimer = 0; if (particles.length < 110) spawnParticle(); }
+  if (creatureTimer > (state === 'diving' ? 1.0 : 3)) { creatureTimer = 0; if (creatures.length < 7) spawnCreature(); }
+
+  // Diver bubbles
+  if (state === 'diving') {
+    diverBubbleTimer += dt;
+    const rate = Math.max(0.015, 0.04 - multiplier * 0.002);
+    if (diverBubbleTimer > rate) {
+      diverBubbleTimer = 0;
+      spawnDiverBubble();
+      if (multiplier > 2) spawnDiverBubble();
+      if (multiplier > 6) spawnDiverBubble();
+      if (multiplier > 12) { spawnDiverBubble(); spawnDiverBubble(); }
+    }
+  } else {
+    diverBubbleTimer += dt;
+    if (diverBubbleTimer > 0.3) { diverBubbleTimer = 0; spawnDiverBubble(); }
+  }
+
+  // ── Diving logic ──
+  if (state === 'diving') {
+    diveTime += dt;
+    multiplier = 0.80 * Math.pow(Math.E, diveTime * 0.12 * (1 + diveTime * 0.008));
+    multiplier = Math.max(0.80, multiplier);
+    depth = Math.max(0, multiplier - 0.80) * 100;
+
+    if (multiplier >= crashPoint) { crash(); return; }
+
+    // HUD
+    multiplierEl.textContent = multiplier.toFixed(2) + 'x';
+    depthValueEl.textContent = Math.floor(depth) + 'm';
+    const zone = getZone(multiplier);
+    multiplierEl.className = `multiplier-display zone-${zone.class}`;
+    zoneNameEl.textContent = zone.name;
+    zoneNameEl.className = `zone-name ${zone.class}`;
+    const depthColors = { surface: [0,200,255], twilight: [123,104,238], midnight: [255,64,129], abyss: [255,23,68] };
+    const dc = depthColors[zone.class];
+    depthValueEl.style.color = `rgba(${dc[0]},${dc[1]},${dc[2]},0.8)`;
+
+    // ── AUDIO ──
+    updateAmbientAudio(multiplier);
+    if (zone.class !== currentZoneAudio) {
+      playZoneTransition(zone.class);
+      currentZoneAudio = zone.class;
+    }
+    bubbleSoundTimer += dt;
+    if (bubbleSoundTimer > 1.5 + Math.random() * 2.5) {
+      bubbleSoundTimer = 0;
+      playDiveAmbientSound();
+    }
+    // Breathing cycle
+    const stress = Math.min(1, (multiplier - 0.8) * 0.05);
+    breathCycleTime = 3.2 - stress * 1.4; // 3.2s calm → 1.8s stressed
+    breathTimer += dt;
+    const inDuration = breathCycleTime * 0.35;
+    const outDuration = breathCycleTime * 0.4;
+    const pauseDuration = breathCycleTime * 0.25;
+    if (breathPhase === 'in' && breathTimer > inDuration) {
+      breathTimer = 0;
+      breathPhase = 'out';
+      playBreathOut();
+    } else if (breathPhase === 'out' && breathTimer > outDuration) {
+      breathTimer = 0;
+      breathPhase = 'pause';
+    } else if (breathPhase === 'pause' && breathTimer > pauseDuration) {
+      breathTimer = 0;
+      breathPhase = 'in';
+      playBreathIn();
+    }
+
+    // Pressure
+    const pressure = Math.min(100, (multiplier / 100) * 100);
+    pressureFill.style.height = pressure + '%';
+    const pc = { surface: '#00e5ff', twilight: '#7b68ee', midnight: '#ff4081', abyss: '#ff1744' };
+    pressureFill.style.background = pc[zone.class];
+
+    // ── SMOOTH background ──
+    const colors = lerpColorStops(multiplier);
+    const lerpSpeed = dt * 2.5;
+    smoothTop.r += (colors.topR - smoothTop.r) * lerpSpeed;
+    smoothTop.g += (colors.topG - smoothTop.g) * lerpSpeed;
+    smoothTop.b += (colors.topB - smoothTop.b) * lerpSpeed;
+    smoothBot.r += (colors.botR - smoothBot.r) * lerpSpeed;
+    smoothBot.g += (colors.botG - smoothBot.g) * lerpSpeed;
+    smoothBot.b += (colors.botB - smoothBot.b) * lerpSpeed;
+
+    // ── VIGNETTE ──
+    const tv = Math.min(1, Math.max(0, multiplier - 0.80) * 0.055);
+    vignetteStrength += (tv - vignetteStrength) * dt * 2;
+
+    // ── DIVER ──
+    const sinkAmount = Math.min(130, Math.max(0, multiplier - 0.80) * 7);
+    targetDiverY = H * 0.33 + sinkAmount;
+    diverY += (targetDiverY - diverY) * dt * 1.8;
+
+    const swimBob = Math.sin(diveTime * 2.8) * (3 + Math.min(2, multiplier * 0.2));
+    const swimSway = Math.sin(diveTime * 0.9) * 5;
+    const tilt = Math.sin(diveTime * 2) * 0.05;
+
+    diverContainer.y = diverY + swimBob;
+    diverContainer.x = W / 2 + swimSway;
+    diverContainer.rotation = tilt;
+
+    if (multiplier > 8) {
+      const shake = Math.min(6, (multiplier - 8) * 0.3);
+      diverContainer.x += (Math.random() - 0.5) * shake;
+      diverContainer.y += (Math.random() - 0.5) * shake;
+    }
+
+    // No warning — kraken strikes without warning
+
+  } else {
+    // Return to surface smoothly
+    const colors = lerpColorStops(multiplier);
+    const ls = dt * 1.2;
+    smoothTop.r += (colors.topR - smoothTop.r) * ls;
+    smoothTop.g += (colors.topG - smoothTop.g) * ls;
+    smoothTop.b += (colors.topB - smoothTop.b) * ls;
+    smoothBot.r += (colors.botR - smoothBot.r) * ls;
+    smoothBot.g += (colors.botG - smoothBot.g) * ls;
+    smoothBot.b += (colors.botB - smoothBot.b) * ls;
+
+    vignetteStrength += (0 - vignetteStrength) * dt * 1.5;
+
+    if (state === 'idle') {
+      diverContainer.y = H * 0.33 + Math.sin(elapsedTime * 1.0) * 6;
+      diverContainer.x = W / 2 + Math.sin(elapsedTime * 0.4) * 4;
+      diverContainer.rotation = Math.sin(elapsedTime * 0.7) * 0.02;
+    }
+  }
+
+  // ── Draw everything ──
+  drawBackground();
+  drawVignette(vignetteStrength);
+  updateLightRays(dt);
+  updateBubbles(dt);
+  updateDiverBubbles(dt);
+  updateParticles(dt);
+  updateCreatures(dt);
+  updateDepthMarkers(dt);
+  updateLightCone();
+  updateKraken(dt);
+});
+
+// Init
+drawBackground();
+for (let i = 0; i < 40; i++) spawnParticle();
+for (let i = 0; i < 15; i++) spawnAmbientBubble();
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); handleAction(); }
+});
+
+// ══════════════════════════════════════════════════
+// CHEAT PANEL
+// ══════════════════════════════════════════════════
+function toggleCheat() {
+  const panel = document.getElementById('cheatPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function setCheat(val) {
+  document.getElementById('cheatInput').value = val.toFixed(2);
+  applyCheat();
+}
+
+function applyCheat() {
+  const val = parseFloat(document.getElementById('cheatInput').value);
+  const status = document.getElementById('cheatStatus');
+  if (isNaN(val) || val < 0.80) {
+    cheatCrashPoint = null;
+    status.textContent = 'No cheat active';
+    status.classList.remove('active');
+    return;
+  }
+  cheatCrashPoint = val;
+  status.textContent = `Next crash: ${val.toFixed(2)}x`;
+  status.classList.add('active');
+}
+
+// Apply cheat on input change
+document.getElementById('cheatInput').addEventListener('change', applyCheat);
+document.getElementById('cheatInput').addEventListener('input', applyCheat);
+
+// ══════════════════════════════════════════════════
+// INSUFFICIENT FUNDS
+// ══════════════════════════════════════════════════
+function showFunds() {
+  document.getElementById('fundsModal').style.display = 'flex';
+}
+
+function hideFunds() {
+  document.getElementById('fundsModal').style.display = 'none';
+}
+
+function resetBalance() {
+  balance = 1000;
+  updateBalance();
+  betInput.value = BET_MIN;
+  updateBetButtons();
+  hideFunds();
+}
+</script>
+
+<div class="sound-modal-overlay" id="soundModal">
+  <div class="sound-modal">
+    <div class="modal-icon">🌊</div>
+    <div class="modal-title">ABYSS</div>
+    <div class="modal-sub">Deep Sea Crash Game</div>
+    <div class="modal-buttons">
+      <button class="modal-btn yes" onclick="initSound(true)">🔊 Enable Sound</button>
+      <button class="modal-btn no" onclick="initSound(false)">🔇 No Sound</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
