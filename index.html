@@ -1,33 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Game Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <header>
-        <h1>EchoSystem Gaming</h1>
+        <div class="logo-container">
+            <h1>EchoSystem</h1>
+            
+            <img src="echosystem.png" alt="Echo Logo" class="hub-logo">
+            
+            <h1>Gaming</h1>
+        </div>
+        <p></p>
     </header>
 
     <main class="game-grid">
         <div class="game-card">
-            <div class="image-placeholder">Thumbnail</div>
+            <div class="thumbnail-wrapper">
+                <img src="taxinightshift.png" alt="Abyss Thumbnail" class="game-thumbnail">
+            </div>
+            
             <div class="card-content">
                 <h2>Taxi Night Shift</h2>
-                <p>Escape or get caught</p>
-                <a href="taxi-night-shift/" class="play-btn">Play Now</a> 
+                <p>Hot seat and a hot road, always a good combo.</p>
+                <a href="/taxi-night-shift/" class="play-btn">Play Now</a>
             </div>
         </div>
 
         <div class="game-card">
-            <div class="image-placeholder">Thumbnail</div>
+            <div class="thumbnail-wrapper">
+                <img src="abyss.png" alt="Abyss Thumbnail" class="game-thumbnail">
+            </div>
+            
             <div class="card-content">
                 <h2>Abyss</h2>
                 <p>Dive deep for the big treasure, but dont forget...</p>
-                <a href="abyss/" class="play-btn">Play Now</a>
+                <a href="/abyss/" class="play-btn">Play Now</a>
             </div>
         </div>
     </main>
